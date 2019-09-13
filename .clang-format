@@ -1,0 +1,26 @@
+---
+Language:     Cpp
+BasedOnStyle: google
+ColumnLimit:  140
+IndentWidth:  4
+SortIncludes: false
+IncludeCategories:
+  - Regex:           '^<'
+    Priority:        1
+  - Regex:           '^"boost'
+    Priority:        2
+  - Regex:           '^"'
+    Priority:        3
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignEscapedNewlines: Left
+AlignOperands: true
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakAfterReturnType: None
+BreakBeforeBraces: Allman
+FixNamespaceComments: true

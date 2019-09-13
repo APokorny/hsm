@@ -1,0 +1,434 @@
+#ifndef HSM_BACK_HPP_INCLUDED
+#define HSM_BACK_HPP_INCLUDED
+#include "hsm/front.hpp"
+#include "hsm/detail/hsm.hpp"
+#include "hsm/detail/back.hpp"
+
+#include <kvasir/mpl/algorithm/fold_left.hpp>
+#include <kvasir/mpl/algorithm/transform.hpp>
+#include <kvasir/mpl/algorithm/replace_if.hpp>
+#include <kvasir/mpl/sequence/push_back.hpp>
+namespace hsm
+{
+namespace back
+{
+template <size_t StateCount, typename StateId, size_t EventCount, typename EventId, size_t ActionCount, typename ActionId,
+          size_t ConditionCount, typename ConditionId, size_t TransitionCount, typename TransitionOffset>
+struct sm_traits
+{
+    using state_id                                = StateId;
+    using event_id                                = EventId;
+    using action_id                               = ActionId;
+    using condition_id                            = ConditionId;
+    using transition_offset                       = TransitionOffset;
+    using tt_entry                                = hsm::detail::tt_entry<event_id, state_id, condition_id, action_id>;
+    using state_entry                             = hsm::detail::state_entry<state_id, transition_offset>;
+    static constexpr state_id    count            = StateCount;
+    static constexpr ActionId    action_count     = ActionCount;
+    static constexpr ConditionId condition_count  = ConditionCount;
+    static constexpr size_t      transition_count = TransitionCount;
+};
+
+enum class state_flags : uint8_t
+{
+    none                            = 0,
+    has_initial_transition          = 1,
+    has_default_transition          = 2,  // == completion
+    has_history                     = 4,
+    has_deep_history                = 8,
+    has_entry                       = 16,
+    has_exit                        = 32,
+    has_mulitple_initial_transition = 64,
+};
+
+enum class transition_flags : uint8_t
+{
+    none       = 0,
+    initial    = 1,
+    history    = 2,
+    completion = 3,
+    to_final   = 4,
+    to_history = 8,
+};
+
+template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, typename... Transitions>
+struct state
+{
+    static constexpr size_t id = Id;
+};
+
+template <typename TT, size_t E, size_t D, size_t C, size_t A>
+struct transition
+{
+};
+
+template <typename SM, size_t Parent_id = 0, size_t Count = 0, size_t EvIds = 0, size_t TsCount = 0>
+struct assembly_status
+{
+    using type                               = SM;
+    static constexpr size_t count            = Count;
+    static constexpr size_t event_count      = EvIds;
+    static constexpr size_t transition_count = TsCount;
+};
+
+template <bool b>
+struct if_
+{
+    template <typename T, typename E>
+    using f = E;
+};
+
+template <>
+struct if_<true>
+{
+    template <typename T, typename E>
+    using f = T;
+};
+
+template <typename T>
+struct unpack_impl
+{
+    using type = T;
+};
+template <typename T>
+struct unpack_impl<state_ref<T>>
+{
+    using type = T;
+};
+template <typename T>
+struct unpack_impl<event<T>>
+{
+    using type = T;
+};
+
+template <typename T>
+using unpack = typename unpack_impl<T>::type;
+
+template <uint32_t Flags, typename... Ps>
+struct combine_flags : kvasir::mpl::uint_<Flags>
+{
+};
+template <uint32_t Flags, typename T>
+struct combine_flags<Flags, history_state<T>, empty_history> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_history)>
+{
+};
+template <uint32_t Flags, typename T>
+struct combine_flags<Flags, deep_history_state<T>, empty_history>
+    : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_deep_history)>
+{
+};
+template <uint32_t Flags, typename T>
+struct combine_flags<Flags, T, start> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_initial_transition)>
+{
+};
+
+template <uint32_t Flags, typename A, size_t Id>
+struct combine_flags<Flags, entry_action<A, Id>> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_entry)>
+{
+};
+
+template <uint32_t Flags, typename A, size_t Id>
+struct combine_flags<Flags, exit_action<A, Id>> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_exit)>
+{
+};
+
+namespace km = kvasir::mpl;
+struct assemble_state_machine
+{
+    template <typename CS, typename Part>
+    struct f_impl
+    {
+        using type = CS;
+    };
+
+    template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename TT, typename S, typename E, typename C, typename A,
+              typename D>
+    struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::transition<TT, S, E, C, A, D>>
+    {
+        using sm   = tiny_tuple::map<Items...>;
+        using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<E, sm>::value>::template f<
+            assembly_status<sm, P, SC, EC, TC + 1>,
+            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1>>;
+    };
+
+    template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K>
+    struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::state_ref<K>>
+    {
+        using type =
+            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P>>>, P, SC + 1, EC, TC>;
+    };
+
+    template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K, typename... Elements>
+    struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::state<K, Elements...>>
+    {
+        constexpr static uint32_t id = SC;
+        using back_state =
+            km::call<km::push_front<assembly_status<tiny_tuple::map<Items...>, id, SC + 1, EC, TC>, km::fold_left<assemble_state_machine>>,
+                     Elements...>;
+        constexpr static uint32_t size = back_state::count - id - 1;
+        using final_table =
+            km::call<km::unpack<km::push_back<tiny_tuple::detail::item<unpack<K>, back::state<0, id, size, P>>, km::cfe<tiny_tuple::map>>>,
+                     typename back_state::type>;
+
+        using type = assembly_status<final_table, P, back_state::count, back_state::event_count, back_state::transition_count>;
+    };
+
+    template <typename State, typename Param>
+    using f = typename f_impl<State, Param>::type;
+};
+
+template <typename SM, typename CurrentState>
+struct attach_transition_state
+{
+    using type = SM;
+};
+
+template <typename C, typename T>
+using get_state = typename detail::get_state_impl<C, T>::type;
+
+template <typename SM, typename E>
+using get_event_id = std::decay_t<decltype(tiny_tuple::get<unpack<E>>(std::declval<SM>()))>;
+
+template <typename SM, typename S>
+using get_state_id = kvasir::mpl::uint_<std::decay_t<decltype(tiny_tuple::get<unpack<S>>(std::declval<SM>()))>::id>;
+
+template <typename Action>
+using get_action_id = typename detail::get_action_impl<Action>::type;
+
+template <typename Condition>
+using get_condition_id = typename detail::get_condition_impl<Condition>::type;
+
+template <typename Source, typename FrontTransition, typename Transition>
+struct apply_transition
+{
+    template <typename T>
+    struct f_impl
+    {
+        using type = T;
+    };
+
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, hsm::back::state<Flags, Id, Size, ParentId, Transitions...>, F>>
+    {
+        static constexpr uint32_t combined_flags =
+            combine_flags<Flags, typename FrontTransition::source_type, typename FrontTransition::transition_type>::value;
+        using type = tiny_tuple::detail::item<Source, state<combined_flags, Id, Size, ParentId, Transitions..., Transition>, F>;
+    };
+    template <typename T>
+    using f = typename f_impl<T>::type;
+};
+
+template <typename Source, typename Action>
+struct apply_action
+{
+    template <typename T>
+    struct f_impl
+    {
+        using type = T;
+    };
+
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Transitions...>, F>>
+    {
+        using type =
+            tiny_tuple::detail::item<Source, state<combine_flags<Flags, Action>::value, Id, Size, ParentId, Action, Transitions...>>;
+    };
+    template <typename T>
+    using f = typename f_impl<T>::type;
+};
+
+struct attach_transitions
+{
+    template <typename L, typename R>
+    struct f_impl
+    {
+        /// using type = L;
+    };
+
+    template <typename L, typename R>
+    struct f_impl<L, hsm::state_ref<R>>
+    {
+        using type = L;
+    };
+
+    template <typename... Items, typename Current, typename A, size_t Id>
+    struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current>, hsm::entry_action<A, Id>>
+    {
+        using type = attach_transition_state<
+            km::call<km::transform<apply_action<Current, hsm::entry_action<A, Id>>, km::cfe<tiny_tuple::map>>, Items...>, Current>;
+    };
+
+    template <typename... Items, typename Current, typename A, size_t Id>
+    struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current>, hsm::exit_action<A, Id>>
+    {
+        using type = attach_transition_state<
+            km::call<km::transform<apply_action<Current, hsm::exit_action<A, Id>>, km::cfe<tiny_tuple::map>>, Items...>, Current>;
+    };
+
+    template <typename... Items, typename Current, typename TT, typename S, typename E, typename C, typename A, typename D>
+    struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current>, hsm::transition<TT, S, E, C, A, D>>
+    {
+        using sm                          = tiny_tuple::map<Items...>;
+        using source_state                = get_state<Current, S>;
+        using dest_state                  = get_state<Current, D>;
+        constexpr static size_t event_id  = get_event_id<sm, E>::value;
+        constexpr static size_t source_id = get_state_id<sm, source_state>::value;
+        constexpr static size_t dest_id   = get_state_id<sm, dest_state>::value;
+        using transition_entry            = back::transition<TT, event_id, dest_id, get_condition_id<C>::value, get_action_id<A>::value>;
+        using front_transition            = hsm::transition<TT, S, E, C, A, D>;
+        using type                        = attach_transition_state<
+            typename km::call<
+                km::transform<apply_transition<unpack<source_state>, front_transition, transition_entry>, km::cfe<tiny_tuple::map>>,
+                Items...>,
+            Current>;
+    };
+
+    template <typename Map, typename P, typename K, typename... Elements>
+    struct f_impl<attach_transition_state<Map, P>, ::hsm::state<K, Elements...>>
+    {
+        using recurse = km::call<km::push_front<attach_transition_state<Map, K>, km::fold_left<attach_transitions>>, Elements...>;
+        using type    = attach_transition_state<typename recurse::type, P>;
+    };
+
+    template <typename State, typename Param>
+    using f = typename f_impl<State, Param>::type;
+};
+
+template <size_t ActionCounter = 0, size_t ConditionCounter = 0>
+struct counters
+{
+    static constexpr size_t a_counter = ActionCounter;
+    static constexpr size_t c_counter = ConditionCounter;
+
+    using add_item             = counters<a_counter, c_counter>;
+    using add_action           = counters<a_counter + 1, c_counter>;
+    using add_condition        = counters<a_counter, c_counter + 1>;
+    using add_action_condition = counters<a_counter + 1, c_counter + 1>;
+};
+
+struct distribute_action_ids
+{
+    template <typename L, typename R>
+    struct f
+    {
+        using counter = L;
+        using type    = R;
+    };
+
+    template <typename L, typename A>
+    struct f<L, hsm::entry_action<A>>
+    {
+        using counter = typename L::add_action;
+        using type    = hsm::entry_action<A, L::a_counter>;
+    };
+
+    template <typename L, typename A>
+    struct f<L, hsm::exit_action<A>>
+    {
+        using counter = typename L::add_action;
+        using type    = hsm::exit_action<A, L::a_counter>;
+    };
+};
+
+template <typename Counter, typename K>
+constexpr auto enumerate_action_item(Counter, K&& item)
+{
+    return tiny_tuple::tuple<Counter, K>(Counter{}, std::move(item));
+}
+
+template <typename Counter, typename A>
+constexpr auto enumerate_action_item(Counter, hsm::entry_action<A>&& item)
+{
+    using counter = typename Counter::add_action;
+    return tiny_tuple::tuple<counter, hsm::entry_action<A, counter::a_counter>>(
+        counter{}, entry_action<A, counter::a_counter>{std::move(item.action)});
+}
+
+template <typename Counter, typename A>
+constexpr auto enumerate_action_item(Counter, hsm::exit_action<A>&& item)
+{
+    using counter = typename Counter::add_action;
+    return tiny_tuple::tuple<counter, hsm::exit_action<A, counter::a_counter>>(counter{},
+                                                                               exit_action<A, counter::a_counter>{std::move(item.action)});
+}
+
+template <typename Counter, typename TT, typename S, typename E, typename A, typename D>
+constexpr auto enumerate_action_item(Counter, hsm::transition<TT, S, E, no_cond, action_node<A>, D>&& item)
+{
+    using counter = typename Counter::add_action;
+    return tiny_tuple::tuple<counter, hsm::transition<TT, S, E, no_cond, action_node<A, counter::a_counter>, D>>(
+        counter{}, hsm::transition<TT, S, E, no_cond, action_node<A, counter::a_counter>, D>(
+                       no_cond{}, action_node<A, counter::a_counter>{std::move(item.action.action)}));
+}
+
+template <typename Counter, typename TT, typename S, typename E, typename C, typename A, typename D>
+constexpr auto enumerate_action_item(Counter, hsm::transition<TT, S, E, condition_node<C>, action_node<A>, D>&& item)
+{
+    using counter = typename Counter::add_action_condition;
+    return tiny_tuple::tuple<counter,
+                             hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, action_node<A, counter::a_counter>, D>>(
+        counter{}, hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, action_node<A, counter::a_counter>, D>(
+                       condition_node<C, counter::c_counter>{std::move(item.cond.condition)},
+                       action_node<A, counter::a_counter>{std::move(item.action.action)}));
+}
+
+template <typename Counter, typename TT, typename S, typename E, typename C, typename D>
+constexpr auto enumerate_action_item(Counter, hsm::transition<TT, S, E, condition_node<C>, no_action, D>&& item)
+{
+    using counter = typename Counter::add_condition;
+    return tiny_tuple::tuple<counter, hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, no_action, D>>(
+        counter{}, hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, no_action, D>(
+                       condition_node<C, counter::c_counter>{std::move(item.cond.condition)}));
+}
+
+template <typename Counter, typename K, typename... Params, typename T, typename... Ts>
+constexpr auto enumerate_state_elements(Counter c, hsm::state<K, Params...>&& scope, T&& item)
+{
+    auto enum_item   = enumerate_action_item(c, std::move(item));
+    using enum_state = hsm::state<K, Params..., std::decay_t<decltype(tiny_tuple::get<1>(enum_item))>>;
+    using counter    = std::decay_t<decltype(tiny_tuple::get<0>(enum_item))>;
+    return tiny_tuple::tuple<counter, enum_state>(counter{},
+                                                  enum_state(append(std::move(scope.data), std::move(tiny_tuple::get<1>(enum_item)))));
+}
+
+template <typename Counter, typename K, typename... Params, typename T, typename... Ts>
+constexpr auto enumerate_state_elements(Counter c, hsm::state<K, Params...>&& scope, T&& item, Ts&&... items)
+{
+    auto enum_item = enumerate_action_item(c, std::move(item));
+    return enumerate_state_elements(tiny_tuple::get<0>(enum_item),
+                                    hsm::state<K, Params..., std::decay_t<decltype(tiny_tuple::get<1>(std::move(enum_item)))>>(
+                                        tiny_tuple::append(std::move(scope.data), tiny_tuple::get<1>(std::move(enum_item)))),
+                                    std::move(items)...);
+}
+
+namespace detail
+{
+template <typename Counter, typename K, typename... Elements, int... Is>
+constexpr auto enumerate_state_elements_util(Counter c, hsm::state<K, Elements...>&& item, std::integer_sequence<int, Is...>)
+{
+    return enumerate_state_elements(c, hsm::state<K>{}, std::move(tiny_tuple::get<Is>(item.data))...);
+}
+}  // namespace detail
+
+template <typename Counter, typename K, typename... Elements>
+constexpr auto enumerate_action_item(Counter c, hsm::state<K, Elements...>&& item)
+{
+    return detail::enumerate_state_elements_util(c, std::move(item), std::make_integer_sequence<int, sizeof...(Elements)>());
+}
+
+template <typename SM, typename Conditions, typename Actions>
+constexpr void initialize_ca_array(SM&& sm, Conditions& conds, Actions& actions)
+{
+    detail::initialize_ca_array(std::move(sm), conds, sm);
+}
+
+template <typename SM, typename Transitions, typename States>
+constexpr void initialize_states(Transitions& transitions, States& states)
+{
+    detail::find_and_apply_state<0, 0>(SM{}, transitions, states);
+}
+
+}  // namespace back
+}  // namespace hsm
+
+#endif
