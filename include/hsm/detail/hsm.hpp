@@ -28,28 +28,59 @@ struct get_id_type_impl<Count, std::enable_if_t<(Count >= 0 && Count < 255)>>
 template <typename StateId, typename TTOffset, typename ActionId>
 struct state_entry
 {
-    using state_id = StateId;
+    using action_id                    = ActionId;
+    using state_id                     = StateId;
     using transition_table_offset_type = TTOffset;
-    TTOffset transition_table_offset{0};
-    state_id parent{0};
-    action_id enter_action;
-    action_id exit_action;
-    uint16_t transition_count{0};
-    uint8_t  flags{0};
+    TTOffset          transition_table_offset{0};
+    action_id         enter_action{0};
+    action_id         exit_action{0};
+    state_id          parent{0};
+    state_id          children_count{0};
+    uint16_t          transition_count{0};
+    uint8_t           special_transition_count{0};
+    back::state_flags flags{0};
+
+    constexpr bool has_default() const { return is_set(flags, back::state_flags::has_default_transition); }
+
+    constexpr bool has_initial() const { return is_set(flags, back::state_flags::has_initial_transition); }
+    constexpr bool has_any_history() const { return is_set(flags, back::state_flags::has_history | back::state_flags::has_deep_history); }
+    constexpr bool has_history() const { return is_set(flags, back::state_flags::has_history); }
+    constexpr bool has_deep_history() const { return is_set(flags, back::state_flags::has_deep_history); }
+    constexpr bool has_entry() const { return is_set(flags, back::state_flags::has_entry); }
+    constexpr bool has_exit() const { return is_set(flags, back::state_flags::has_exit); }
 };
 
 template <typename EventId, typename StateId, typename ConditionId, typename ActionId>
 struct tt_entry
 {
-    using event_id = EventId;
-    using state_id = StateId;
+    using event_id     = EventId;
+    using state_id     = StateId;
     using condition_id = ConditionId;
-    using action_id = ActionId;
-    EventId     event{0};
-    StateId     dest{0};
-    ConditionId condition_index{0};
-    ActionId    action_index{0};
-    uint8_t     flags{0};
+    using action_id    = ActionId;
+    EventId                event{0};
+    StateId                dest{0};
+    ConditionId            condition_index{0};
+    ActionId               action_index{0};
+    back::transition_flags flags{0};
+
+    constexpr back::transition_flags transition_type() const { return flags & back::transition_flags::transition_type_mask; }
+
+    constexpr back::transition_flags destination_type() const { return flags & back::transition_flags::dest_mask; }
+    constexpr bool to_history() const { return is_set(destination_type(), back::transition_flags::to_shallow_history); }
+    constexpr bool has_action() const { return back::transition_flags::has_action == (flags & back::transition_flags::has_action); }
+    constexpr bool has_condition() const
+    {
+        return back::transition_flags::has_condition == (flags & back::transition_flags::has_condition);
+    }
+};
+
+template <typename T>
+struct tt_entry_range
+{
+    T*           b;
+    T*           e;
+    constexpr T* begin() const { return b; }
+    constexpr T* end() const { return e; }
 };
 
 }  // namespace detail

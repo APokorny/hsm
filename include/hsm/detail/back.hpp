@@ -1,6 +1,9 @@
 #ifndef HSM_DETAIL_BACK_HPP_INCLUDED
 #define HSM_DETAIL_BACK_HPP_INCLUDED
 #include <hsm/hsm_fwd.hpp>
+#include <kvasir/mpl/algorithm/stable_sort.hpp>
+#include <kvasir/mpl/algorithm/find_if.hpp>
+#include <kvasir/mpl/sequence/size.hpp>
 
 namespace hsm
 {
@@ -129,8 +132,8 @@ struct is_state
     struct f_impl : kvasir::mpl::bool_<false>
     {
     };
-    template <typename N, uint32_t F, size_t S, size_t P, typename... Ts>
-    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Ts...>>> : kvasir::mpl::bool_<true>
+    template <typename N, uint32_t F, size_t S, size_t P, size_t Entry, size_t Exit, typename... Ts>
+    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, Ts...>>> : kvasir::mpl::bool_<true>
     {
     };
     template <typename T>
@@ -144,30 +147,54 @@ constexpr D convert_max(S s)
     return static_cast<D>(s);
 }
 
-template <int TO, typename TT, size_t E, size_t D, size_t C, size_t A, typename Transitions>
-constexpr int apply_transition(hsm::back::transition<TT, E, D, C, A>, Transitions& trans)
+template <int TO, uint32_t TF, size_t E, size_t D, size_t C, size_t A, typename Transitions>
+constexpr int apply_transition(hsm::back::transition<TF, E, D, C, A>, Transitions& trans)
 {
     using tte = typename Transitions::value_type;
-    trans[TO] = tte{typename tte::event_id(E), typename tte::state_id(D), convert_max<typename tte::condition_id>(C),
-                    convert_max<typename tte::action_id>(A), 0};
+    trans[TO] = tte{typename tte::event_id(E),                   //
+                    typename tte::state_id(D),                   //
+                    convert_max<typename tte::condition_id>(C),  //
+                    convert_max<typename tte::action_id>(A),     //
+                    static_cast<back::transition_flags>(TF)};
     return 0;
 }
 
-template <int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, typename... Ts, int... Is, typename Transitions>
-constexpr void apply_transitions(hsm::back::state<Flags, Id, StateCount, Parent, Ts...>, std::integer_sequence<int, Is...>,
-                                 Transitions& trans)
+template <int TO, typename... Ts, int... Is, typename Transitions>
+constexpr void apply_transitions(kvasir::mpl::list<Ts...>, std::integer_sequence<int, Is...>, Transitions& trans)
 {
-    auto f = {apply_transition<TO + Is>(Ts{}, trans)...};
+    int f[] = {apply_transition<TO + Is>(Ts{}, trans)...};
     (void)f;
 }
-
-template <int I, int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, typename... Ts, typename Transitions, typename States>
-constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Ts...> sm, Transitions& transitions, States& states)
+struct sort_transition
 {
-    using state_table_entry = typename States::value_type;
-    states[I]               = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
-                                  static_cast<typename state_table_entry::state_id>(Parent), static_cast<uint16_t>(sizeof...(Ts)), Flags};
-    apply_transitions<TO>(sm, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
+    template <typename T1, typename T2>
+    using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) <
+                                 (T2::flags & cast(transition_flags::transition_type_mask))>;
+};
+
+struct normal_transition
+{
+    template <typename T1>
+    using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) <= cast(transition_flags::internal)>;
+};
+
+template <int I, int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, size_t Entry, size_t Exit, typename... Ts,
+          typename Transitions, typename States>
+constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry, Exit, Ts...> sm, Transitions& transitions, States& states)
+{
+    using state_table_entry  = typename States::value_type;
+    using sorted_transitions = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
+    using first_real_transition =
+        kvasir::mpl::call<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<kvasir::mpl::identity>>, Ts...>;
+    apply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
+    states[I] = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
+                                  static_cast<state_table_entry::action_id>(Entry),
+                                  static_cast<state_table_entry::action_id>(Exit),
+                                  static_cast<typename state_table_entry::state_id>(Parent),
+                                  static_cast<typename state_table_entry::state_id>(StateCount),
+                                  static_cast<uint16_t>(sizeof...(Ts)),
+                                  static_cast<uint8_t>(sizeof...(Ts) - first_real_transition::value),  // number of transitions
+                                  static_cast<back::state_flags>(Flags)};
     return kvasir::mpl::uint_<TO + sizeof...(Ts)>();
 }
 

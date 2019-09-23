@@ -1,5 +1,6 @@
 #ifndef HSM_BACK_HPP_INCLUDED
 #define HSM_BACK_HPP_INCLUDED
+#include "hsm/hsm_fwd.hpp"
 #include "hsm/front.hpp"
 #include "hsm/detail/hsm.hpp"
 #include "hsm/detail/back.hpp"
@@ -22,44 +23,85 @@ struct sm_traits
     using condition_id                            = ConditionId;
     using transition_offset                       = TransitionOffset;
     using tt_entry                                = hsm::detail::tt_entry<event_id, state_id, condition_id, action_id>;
-    using state_entry                             = hsm::detail::state_entry<state_id, transition_offset>;
+    using state_entry                             = hsm::detail::state_entry<state_id, transition_offset, action_id>;
     static constexpr state_id    count            = StateCount;
     static constexpr ActionId    action_count     = ActionCount;
     static constexpr ConditionId condition_count  = ConditionCount;
     static constexpr size_t      transition_count = TransitionCount;
 };
 
-enum class state_flags : uint8_t
+template <typename T>
+struct to_flag : kvasir::mpl::uint_<0>
 {
-    none                            = 0,
-    has_initial_transition          = 1,
-    has_default_transition          = 2,  // == completion
-    has_history                     = 4,
-    has_deep_history                = 8,
-    has_entry                       = 16,
-    has_exit                        = 32,
-    has_mulitple_initial_transition = 64,
 };
 
-enum class transition_flags : uint8_t
+template <>
+struct to_flag<hsm::completion> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::completion)>
 {
-    none       = 0,
-    initial    = 1,
-    history    = 2,
-    completion = 3,
-    to_final   = 4,
-    to_history = 8,
+};
+template <>
+struct to_flag<hsm::start> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::initial)>
+{
+};
+template <>
+struct to_flag<hsm::empty_history> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::history)>
+{
+};
+template <>
+struct to_flag<hsm::internal_transition> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::internal)>
+{
 };
 
-template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, typename... Transitions>
+template <typename T>
+struct source_flag : kvasir::mpl::uint_<0>
+{
+};
+
+template <typename D>
+struct dest_flag : kvasir::mpl::uint_<0>
+{
+};
+template <typename C>
+struct dest_flag<final_state<C>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::to_final)>
+{
+};
+template <typename C>
+struct dest_flag<history_state<C>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::to_shallow_history)>
+{
+};
+template <typename C>
+struct dest_flag<deep_history_state<C>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::to_deep_history)>
+{
+};
+
+template <typename T>
+struct condition_flag : kvasir::mpl::uint_<0>
+{
+};
+template <typename T, size_t Id>
+struct condition_flag<condition_node<T, Id>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_condition)>
+{
+};
+
+template <typename T>
+struct action_flag : kvasir::mpl::uint_<0>
+{
+};
+template <typename T, size_t Id>
+struct action_flag<action_node<T, Id>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
+{
+};
+
+template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions>
 struct state
 {
     static constexpr size_t id = Id;
 };
 
-template <typename TT, size_t E, size_t D, size_t C, size_t A>
+template <uint32_t Flags, size_t E, size_t D, size_t C, size_t A>
 struct transition
 {
+    static constexpr uint32_t flags = Flags;
 };
 
 template <typename SM, size_t Parent_id = 0, size_t Count = 0, size_t EvIds = 0, size_t TsCount = 0>
@@ -109,7 +151,7 @@ struct combine_flags : kvasir::mpl::uint_<Flags>
 {
 };
 template <uint32_t Flags, typename T>
-struct combine_flags<Flags, history_state<T>, empty_history> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_history)>
+struct combine_flags<Flags, history_state<T>, empty_history> : kvasir::mpl::uint_<Flags | cast(state_flags::has_history)>
 {
 };
 template <uint32_t Flags, typename T>
@@ -118,17 +160,15 @@ struct combine_flags<Flags, deep_history_state<T>, empty_history>
 {
 };
 template <uint32_t Flags, typename T>
-struct combine_flags<Flags, T, start> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_initial_transition)>
+struct combine_flags<Flags, T, start>
+    : kvasir::mpl::uint_<Flags | ((Flags & static_cast<uint32_t>(state_flags::has_initial_transition))
+                                      ? static_cast<uint32_t>(state_flags::has_mulitple_initial_transition)
+                                      : static_cast<uint32_t>(state_flags::has_initial_transition))>
 {
 };
 
-template <uint32_t Flags, typename A, size_t Id>
-struct combine_flags<Flags, entry_action<A, Id>> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_entry)>
-{
-};
-
-template <uint32_t Flags, typename A, size_t Id>
-struct combine_flags<Flags, exit_action<A, Id>> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_exit)>
+template <uint32_t Flags, typename T>
+struct combine_flags<Flags, T, completion> : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_default_transition)>
 {
 };
 
@@ -154,8 +194,8 @@ struct assemble_state_machine
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K>
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::state_ref<K>>
     {
-        using type =
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P>>>, P, SC + 1, EC, TC>;
+        using type = assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0>>>, P,
+                                     SC + 1, EC, TC>;
     };
 
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K, typename... Elements>
@@ -166,9 +206,9 @@ struct assemble_state_machine
             km::call<km::push_front<assembly_status<tiny_tuple::map<Items...>, id, SC + 1, EC, TC>, km::fold_left<assemble_state_machine>>,
                      Elements...>;
         constexpr static uint32_t size = back_state::count - id - 1;
-        using final_table =
-            km::call<km::unpack<km::push_back<tiny_tuple::detail::item<unpack<K>, back::state<0, id, size, P>>, km::cfe<tiny_tuple::map>>>,
-                     typename back_state::type>;
+        using final_table              = km::call<
+            km::unpack<km::push_back<tiny_tuple::detail::item<unpack<K>, back::state<0, id, size, P, 0, 0>>, km::cfe<tiny_tuple::map>>>,
+            typename back_state::type>;
 
         using type = assembly_status<final_table, P, back_state::count, back_state::event_count, back_state::transition_count>;
     };
@@ -207,19 +247,20 @@ struct apply_transition
         using type = T;
     };
 
-    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, typename... Transitions, bool F>
-    struct f_impl<tiny_tuple::detail::item<Source, hsm::back::state<Flags, Id, Size, ParentId, Transitions...>, F>>
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, hsm::back::state<Flags, Id, Size, ParentId, Entry, Exit, Transitions...>, F>>
     {
         static constexpr uint32_t combined_flags =
             combine_flags<Flags, typename FrontTransition::source_type, typename FrontTransition::transition_type>::value;
-        using type = tiny_tuple::detail::item<Source, state<combined_flags, Id, Size, ParentId, Transitions..., Transition>, F>;
+        using type =
+            tiny_tuple::detail::item<Source, state<combined_flags, Id, Size, ParentId, Entry, Exit, Transitions..., Transition>, F>;
     };
     template <typename T>
     using f = typename f_impl<T>::type;
 };
 
-template <typename Source, typename Action>
-struct apply_action
+template <typename Source, size_t ActionId>
+struct apply_entry_action
 {
     template <typename T>
     struct f_impl
@@ -227,11 +268,30 @@ struct apply_action
         using type = T;
     };
 
-    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, typename... Transitions, bool F>
-    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Transitions...>, F>>
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Entry, Exit, Transitions...>, F>>
     {
-        using type =
-            tiny_tuple::detail::item<Source, state<combine_flags<Flags, Action>::value, Id, Size, ParentId, Action, Transitions...>>;
+        using type = tiny_tuple::detail::item<
+            Source, state<Flags | static_cast<uint32_t>(state_flags::has_entry), Id, Size, ParentId, ActionId, Exit, Transitions...>>;
+    };
+    template <typename T>
+    using f = typename f_impl<T>::type;
+};
+
+template <typename Source, size_t ActionId>
+struct apply_exit_action
+{
+    template <typename T>
+    struct f_impl
+    {
+        using type = T;
+    };
+
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Entry, Exit, Transitions...>, F>>
+    {
+        using type = tiny_tuple::detail::item<
+            Source, state<Flags | static_cast<uint32_t>(state_flags::has_exit), Id, Size, ParentId, Entry, ActionId, Transitions...>>;
     };
     template <typename T>
     using f = typename f_impl<T>::type;
@@ -242,27 +302,29 @@ struct attach_transitions
     template <typename L, typename R>
     struct f_impl
     {
-        /// using type = L;
+       using type = L;
     };
 
+#if 0
     template <typename L, typename R>
     struct f_impl<L, hsm::state_ref<R>>
     {
         using type = L;
     };
+#endif
 
     template <typename... Items, typename Current, typename A, size_t Id>
     struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current>, hsm::entry_action<A, Id>>
     {
-        using type = attach_transition_state<
-            km::call<km::transform<apply_action<Current, hsm::entry_action<A, Id>>, km::cfe<tiny_tuple::map>>, Items...>, Current>;
+        using type =
+            attach_transition_state<km::call<km::transform<apply_entry_action<Current, Id>, km::cfe<tiny_tuple::map>>, Items...>, Current>;
     };
 
     template <typename... Items, typename Current, typename A, size_t Id>
     struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current>, hsm::exit_action<A, Id>>
     {
-        using type = attach_transition_state<
-            km::call<km::transform<apply_action<Current, hsm::exit_action<A, Id>>, km::cfe<tiny_tuple::map>>, Items...>, Current>;
+        using type =
+            attach_transition_state<km::call<km::transform<apply_exit_action<Current, Id>, km::cfe<tiny_tuple::map>>, Items...>, Current>;
     };
 
     template <typename... Items, typename Current, typename TT, typename S, typename E, typename C, typename A, typename D>
@@ -274,7 +336,9 @@ struct attach_transitions
         constexpr static size_t event_id  = get_event_id<sm, E>::value;
         constexpr static size_t source_id = get_state_id<sm, source_state>::value;
         constexpr static size_t dest_id   = get_state_id<sm, dest_state>::value;
-        using transition_entry            = back::transition<TT, event_id, dest_id, get_condition_id<C>::value, get_action_id<A>::value>;
+        using transition_entry            = back::transition<to_flag<TT>::value | source_flag<S>::value | dest_flag<D>::value |
+                                                      condition_flag<C>::value | action_flag<A>::value,
+                                                  event_id, dest_id, get_condition_id<C>::value, get_action_id<A>::value>;
         using front_transition            = hsm::transition<TT, S, E, C, A, D>;
         using type                        = attach_transition_state<
             typename km::call<

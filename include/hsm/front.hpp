@@ -97,6 +97,12 @@ struct enter_node
     {
         return entry_action<A>{std::forward<A>(a)};
     }
+
+    template <typename A>
+    constexpr auto operator=(A&& a) const noexcept
+    {
+        return entry_action<A>{std::forward<A>(a)};
+    }
 };
 
 constexpr enter_node enter;
@@ -111,6 +117,12 @@ struct exit_node
 {
     template <typename A>
     constexpr auto operator/(A&& a) const noexcept
+    {
+        return exit_action<A>{std::forward<A>(a)};
+    }
+
+    template <typename A>
+    constexpr auto operator=(A&& a) const noexcept
     {
         return exit_action<A>{std::forward<A>(a)};
     }
@@ -374,7 +386,7 @@ struct event
     template <typename A>
     constexpr auto operator/(A&& a) noexcept
     {
-        return n_trans<current_state, event<Key>, no_cond, action_node<std::decay_t<A>>, no_dest>{no_cond{}, action_node<A>{std::forward<A>(a)}};
+        return n_trans<current_state, event<Key>, no_cond, action_node<std::decay_t<A>>, no_dest>{no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
     }
 };
 
