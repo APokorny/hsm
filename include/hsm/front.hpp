@@ -145,8 +145,8 @@ struct transition<TT, S, E, C, no_action, D>
 {
     using transition_type = TT;
     using source_type     = S;
-    C         cond;
-    no_action action;
+    mutable C         cond;
+    mutable no_action action;
     transition(C&& c) : cond{std::forward<C>(c)} {}
     transition(C&& c, no_action&&) : cond{std::forward<C>(c)} {}
 };
@@ -165,8 +165,8 @@ struct transition<TT, S, E, no_cond, no_action, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
-    no_cond   cond;
-    no_action action;
+    mutable no_cond   cond;
+    mutable no_action action;
     template <typename C>
     constexpr auto operator[](C&& cond) const noexcept
     {
@@ -190,7 +190,7 @@ struct transition<TT, S, E, C, no_action, no_dest>
     using transition_type = TT;
     using source_type     = S;
     mutable C cond;
-    no_action action;
+    mutable no_action action;
     transition(C&& c) : cond{std::forward<C>(c)} {}
     transition(C&& c, no_action&&) : cond{std::forward<C>(c)} {}
     template <typename A>
@@ -210,13 +210,13 @@ struct transition<TT, S, E, C, A, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
-    C cond;
-    A action;
+    mutable C cond;
+    A mutable action;
     transition(C&& c, A&& a) : cond{std::forward<C>(c)}, action{std::forward<A>(a)} {}
     template <typename D>
     constexpr auto operator=(D const&) noexcept
     {
-        return transition<TT, S, E, C, A, D>{cond, action};
+        return transition<TT, S, E, C, A, D>{std::move(cond), std::move(action)};
     }
 };
 
@@ -225,8 +225,8 @@ struct transition<TT, S, E, no_cond, A, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
-    no_cond cond;
-    A       action;
+    mutable no_cond cond;
+    mutable A       action;
     transition(no_cond&&, A&& a) : action{std::forward<A>(a)} {}
     template <typename D>
     constexpr auto operator=(D const&) noexcept

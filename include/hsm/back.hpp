@@ -302,7 +302,7 @@ struct attach_transitions
     template <typename L, typename R>
     struct f_impl
     {
-       using type = L;
+        using type = L;
     };
 
 #if 0
@@ -370,30 +370,6 @@ struct counters
     using add_action_condition = counters<a_counter + 1, c_counter + 1>;
 };
 
-struct distribute_action_ids
-{
-    template <typename L, typename R>
-    struct f
-    {
-        using counter = L;
-        using type    = R;
-    };
-
-    template <typename L, typename A>
-    struct f<L, hsm::entry_action<A>>
-    {
-        using counter = typename L::add_action;
-        using type    = hsm::entry_action<A, L::a_counter>;
-    };
-
-    template <typename L, typename A>
-    struct f<L, hsm::exit_action<A>>
-    {
-        using counter = typename L::add_action;
-        using type    = hsm::exit_action<A, L::a_counter>;
-    };
-};
-
 template <typename Counter, typename K>
 constexpr auto enumerate_action_item(Counter, K&& item)
 {
@@ -404,25 +380,25 @@ template <typename Counter, typename A>
 constexpr auto enumerate_action_item(Counter, hsm::entry_action<A>&& item)
 {
     using counter = typename Counter::add_action;
-    return tiny_tuple::tuple<counter, hsm::entry_action<A, counter::a_counter>>(
-        counter{}, entry_action<A, counter::a_counter>{std::move(item.action)});
+    return tiny_tuple::tuple<counter, hsm::entry_action<A, Counter::a_counter>>(
+        counter{}, entry_action<A, Counter::a_counter>{std::move(item.action)});
 }
 
 template <typename Counter, typename A>
 constexpr auto enumerate_action_item(Counter, hsm::exit_action<A>&& item)
 {
     using counter = typename Counter::add_action;
-    return tiny_tuple::tuple<counter, hsm::exit_action<A, counter::a_counter>>(counter{},
-                                                                               exit_action<A, counter::a_counter>{std::move(item.action)});
+    return tiny_tuple::tuple<counter, hsm::exit_action<A, Counter::a_counter>>(counter{},
+                                                                               exit_action<A, Counter::a_counter>{std::move(item.action)});
 }
 
 template <typename Counter, typename TT, typename S, typename E, typename A, typename D>
 constexpr auto enumerate_action_item(Counter, hsm::transition<TT, S, E, no_cond, action_node<A>, D>&& item)
 {
     using counter = typename Counter::add_action;
-    return tiny_tuple::tuple<counter, hsm::transition<TT, S, E, no_cond, action_node<A, counter::a_counter>, D>>(
-        counter{}, hsm::transition<TT, S, E, no_cond, action_node<A, counter::a_counter>, D>(
-                       no_cond{}, action_node<A, counter::a_counter>{std::move(item.action.action)}));
+    return tiny_tuple::tuple<counter, hsm::transition<TT, S, E, no_cond, action_node<A, Counter::a_counter>, D>>(
+        counter{}, hsm::transition<TT, S, E, no_cond, action_node<A, Counter::a_counter>, D>(
+                       no_cond{}, action_node<A, Counter::a_counter>{std::move(item.action.action)}));
 }
 
 template <typename Counter, typename TT, typename S, typename E, typename C, typename A, typename D>
@@ -430,19 +406,19 @@ constexpr auto enumerate_action_item(Counter, hsm::transition<TT, S, E, conditio
 {
     using counter = typename Counter::add_action_condition;
     return tiny_tuple::tuple<counter,
-                             hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, action_node<A, counter::a_counter>, D>>(
-        counter{}, hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, action_node<A, counter::a_counter>, D>(
-                       condition_node<C, counter::c_counter>{std::move(item.cond.condition)},
-                       action_node<A, counter::a_counter>{std::move(item.action.action)}));
+                             hsm::transition<TT, S, E, condition_node<C, Counter::c_counter>, action_node<A, Counter::a_counter>, D>>(
+        counter{}, hsm::transition<TT, S, E, condition_node<C, Counter::c_counter>, action_node<A, Counter::a_counter>, D>(
+                       condition_node<C, Counter::c_counter>{std::move(item.cond.condition)},
+                       action_node<A, Counter::a_counter>{std::move(item.action.action)}));
 }
 
 template <typename Counter, typename TT, typename S, typename E, typename C, typename D>
 constexpr auto enumerate_action_item(Counter, hsm::transition<TT, S, E, condition_node<C>, no_action, D>&& item)
 {
     using counter = typename Counter::add_condition;
-    return tiny_tuple::tuple<counter, hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, no_action, D>>(
-        counter{}, hsm::transition<TT, S, E, condition_node<C, counter::c_counter>, no_action, D>(
-                       condition_node<C, counter::c_counter>{std::move(item.cond.condition)}));
+    return tiny_tuple::tuple<counter, hsm::transition<TT, S, E, condition_node<C, Counter::c_counter>, no_action, D>>(
+        counter{}, hsm::transition<TT, S, E, condition_node<C, Counter::c_counter>, no_action, D>(
+                       condition_node<C, Counter::c_counter>{std::move(item.cond.condition)}));
 }
 
 template <typename Counter, typename K, typename... Params, typename T, typename... Ts>
@@ -483,7 +459,7 @@ constexpr auto enumerate_action_item(Counter c, hsm::state<K, Elements...>&& ite
 template <typename SM, typename Conditions, typename Actions>
 constexpr void initialize_ca_array(SM&& sm, Conditions& conds, Actions& actions)
 {
-    detail::initialize_ca_array(std::move(sm), conds, sm);
+    detail::initialize_ca_array(std::move(sm), conds, actions);
 }
 
 template <typename SM, typename Transitions, typename States>

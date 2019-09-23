@@ -14,7 +14,7 @@ namespace detail
 template <typename T>
 struct get_action_impl
 {
-    using type = kvasir::mpl::uint_<std::numeric_limits<long long unsigned int>::max()>;
+    using type = kvasir::mpl::uint_<0>;
 };
 
 template <typename A, size_t Id>
@@ -26,7 +26,7 @@ struct get_action_impl<action_node<A, Id>>
 template <typename T>
 struct get_condition_impl
 {
-    using type = kvasir::mpl::uint_<std::numeric_limits<long long unsigned int>::max()>;
+    using type = kvasir::mpl::uint_<0>;
 };
 
 template <typename C, size_t Id>
@@ -77,11 +77,6 @@ struct get_state_impl<C, hsm::final_state<T>>
     using type = typename get_state_impl<C, T>::type;
 };
 
-template <typename T, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(T&&, Conditions&, Actions&)
-{
-}
-
 template <typename A, size_t I, typename Actions>
 constexpr void set_action(action_node<A, I>&& node, Actions& actions)
 {
@@ -90,7 +85,7 @@ constexpr void set_action(action_node<A, I>&& node, Actions& actions)
 template <typename C, size_t I, typename Conditions>
 constexpr void set_condition(condition_node<C, I>&& node, Conditions& conds)
 {
-    conds[I] = std::move(node.cond);
+    conds[I] = std::move(node.condition);
 }
 template <typename Conditions>
 constexpr void set_condition(no_cond&&, Conditions&)
@@ -98,6 +93,16 @@ constexpr void set_condition(no_cond&&, Conditions&)
 }
 template <typename Actions>
 constexpr void set_action(no_action&&, Actions&)
+{
+}
+
+template <typename T, typename Conditions, typename Actions>
+constexpr void initialize_ca_array(hsm::event<T>, Conditions&, Actions&)
+{
+}
+
+template <typename T, typename Conditions, typename Actions>
+constexpr void initialize_ca_array(hsm::state_ref<T>, Conditions&, Actions&)
 {
 }
 
@@ -112,17 +117,16 @@ constexpr void initialize_ca_array(entry_action<A, I>&& entry, Conditions&, Acti
     actions[I] = std::move(entry.action);
 }
 template <typename TT, typename S, typename E, typename C, typename A, typename D, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::transition<TT, S, E, C, A, D>&& sm, Conditions& conds, Actions& actions)
+constexpr void initialize_ca_array(hsm::transition<TT, S, E, C, A, D>&& t, Conditions& conds, Actions& actions)
 {
-    set_action(std::move(sm.action), actions);
-    set_condition(std::move(sm.cond), conds);
+    set_action(std::move(t.action), actions);
+    set_condition(std::move(t.cond), conds);
 }
 template <typename K, typename... Cs, typename Conditions, typename Actions>
 constexpr void initialize_ca_array(hsm::state<K, Cs...>&& sm, Conditions& conds, Actions& actions)
 {
-    tiny_tuple::foreach (std::move(sm.data), [&conds, &actions](auto&& element) {
-        initialize_ca_array(std::forward<decltype(element)>(element), conds, actions);
-    });
+    tiny_tuple::foreach (std::move(sm.data),
+                         [&conds, &actions](auto&& element) { initialize_ca_array(std::move(element), conds, actions); });
 }
 
 template <int Id>
@@ -140,21 +144,14 @@ struct is_state
     using f = f_impl<T>;
 };
 
-template <typename D, typename S>
-constexpr D convert_max(S s)
-{
-    if (s == std::numeric_limits<S>::max()) return std::numeric_limits<D>::max();
-    return static_cast<D>(s);
-}
-
 template <int TO, uint32_t TF, size_t E, size_t D, size_t C, size_t A, typename Transitions>
 constexpr int apply_transition(hsm::back::transition<TF, E, D, C, A>, Transitions& trans)
 {
     using tte = typename Transitions::value_type;
     trans[TO] = tte{typename tte::event_id(E),                   //
                     typename tte::state_id(D),                   //
-                    convert_max<typename tte::condition_id>(C),  //
-                    convert_max<typename tte::action_id>(A),     //
+                    static_cast<typename tte::condition_id>(C),  //
+                    static_cast<typename tte::action_id>(A),     //
                     static_cast<back::transition_flags>(TF)};
     return 0;
 }
@@ -175,7 +172,7 @@ struct sort_transition
 struct normal_transition
 {
     template <typename T1>
-    using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) <= cast(transition_flags::internal)>;
+    using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) >= cast(transition_flags::internal)>;
 };
 
 template <int I, int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, size_t Entry, size_t Exit, typename... Ts,
@@ -184,16 +181,16 @@ constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry
 {
     using state_table_entry  = typename States::value_type;
     using sorted_transitions = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
-    using first_real_transition =
-        kvasir::mpl::call<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<kvasir::mpl::identity>>, Ts...>;
-    apply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
+    using num_normal_transition =
+        kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<>>>, sorted_transitions>;
+    pply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
     states[I] = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
                                   static_cast<state_table_entry::action_id>(Entry),
                                   static_cast<state_table_entry::action_id>(Exit),
                                   static_cast<typename state_table_entry::state_id>(Parent),
                                   static_cast<typename state_table_entry::state_id>(StateCount),
                                   static_cast<uint16_t>(sizeof...(Ts)),
-                                  static_cast<uint8_t>(sizeof...(Ts) - first_real_transition::value),  // number of transitions
+                                  static_cast<uint8_t>(sizeof...(Ts) - num_normal_transition::value),  // number of transitions
                                   static_cast<back::state_flags>(Flags)};
     return kvasir::mpl::uint_<TO + sizeof...(Ts)>();
 }

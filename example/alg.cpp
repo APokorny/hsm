@@ -8,13 +8,23 @@ int  main()
     auto debug_stuff = []() { std::cout << "Stay in CCC \n"; };
     auto go_to_bbb   = []() { std::cout << "go to bbb\n"; };
     auto foo         = create_state_machine(  //
-        "jump_to_b"_ev,  //
+        "jump_to_b"_ev,               //
         "stay_in_ccc"_ev,
-        initial = "c"_state,  //
-        "c"_state(            //
-            initial = "cc"_state,
-            "cc"_state(  //
-                "ccc"_state("stay_in_ccc"_ev / debug_stuff = internal),
+        initial   = "c"_state,                                       //
+        enter     = []() { std::cout << "in main state\n"; },        //
+        hsm::exit = []() { std::cout << "leaving root state\n"; },   //
+        "c"_state(                                                   //
+            enter     = []() { std::cout << "in c state\n"; },       //
+            hsm::exit = []() { std::cout << "leaving c state\n"; },  //
+            initial   = "cc"_state,
+            "cc"_state(                                                                            //
+                enter     = []() { std::cout << "in cc state\n"; },                                //
+                hsm::exit = []() { std::cout << "leaving cc state\n"; },                           //
+                "ccc"_state(                                                                       //
+                    "stay_in_ccc"_ev / debug_stuff = internal,                                     //
+                    enter                          = []() { std::cout << "in ccc state\n"; },      //
+                    hsm::exit                      = []() { std::cout << "leaving ccc state\n"; }  //
+                    ),
                 "jump_to_b"_ev / go_to_bbb = "bbb"_state)  //
             ),                                             //
         "bb"_state(                                        //

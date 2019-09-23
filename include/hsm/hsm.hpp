@@ -41,9 +41,12 @@ struct state_machine
     constexpr transition_range get_special_transitions(state_entry const& s) const
     {
         auto const* first = &transition_table[s.transition_table_offset];
-        return transition_range{first, &first[static_cast<int>(s.special_transition_count)]};
+        return transition_range{first, first + s.special_transition_count};
     }
-    constexpr transition_range get_special_transitions(state_id id) const { return get_special_transitions(state_table[id]); }
+    constexpr transition_range get_special_transitions(state_id id) const
+    {
+        return get_special_transitions(state_table[id]);
+    }
 
     constexpr transition_range get_event_transitions(state_entry const& s) const
     {
@@ -66,22 +69,28 @@ struct state_machine
             return (search_state - state_table.data()) <= trans.dest &&
                    (search_state - state_table.data() + search_state->children_count) >= trans.dest;
         };
-        auto execute_exit = [&search_state, this]() {
+        auto execute_exit = [this](state_entry const* s) {
             // store state in history if nexesssary .. current_state or recently exited state
-            if (search_state->has_exit()) action_table[search_state->exit_action]();
+            if (s->has_exit()) action_table[s->exit_action]();
         };
-        auto execute_enter = [&search_state, this]() {
+        auto execute_enter = [this](state_entry const* s) {
             // alternatively update the history on upwards --- this ought to be a policy
-            if (search_state->has_entry()) action_table[search_state->enter_action]();
+            if (s->has_entry()) action_table[s->enter_action]();
         };
         auto to_parent = [this](state_entry const*& s) { s = &state_table[s->parent]; };
 
         // constexpr if history || enter actions
-        execute_exit();
-        to_parent(search_state);
+        if (current_state == trans.dest)
+        {
+            execute_exit(search_state);
+            if (trans.has_action()) action_table[trans.action_index]();
+            execute_enter(search_state);
+            return;
+        }
+
         while (!contains())
         {
-            execute_exit();
+            execute_exit(search_state);
             to_parent(search_state);
         }
 
@@ -96,6 +105,7 @@ struct state_machine
         }
 
         std::for_each(actions.rbegin(), actions.rend(), [this](auto a) { action_table[a](); });
+        current_state = trans.dest;
     }
     tt_entry const* restore_history(state_id id)
     {
@@ -186,23 +196,26 @@ struct state_machine
 template <typename... Ts>
 constexpr auto create_state_machine(Ts&&... state_parts)
 {
-    auto RootState = back::enumerate_state_elements(back::counters<0, 0>{}, hsm::state<hsm::root_state>{}, std::move(state_parts)...);
-    namespace km   = kvasir::mpl;
-    using ca       = std::decay_t<decltype(tiny_tuple::get<0>(RootState))>;
-    using sm_stats = km::call<                                                                                             //
-        km::push_front<                                                                                                    //
-            hsm::back::assembly_status<tiny_tuple::map<tiny_tuple::detail::item<no_event, km::uint_<0>, true>>, 0, 1, 1>,  //
-            km::fold_left<hsm::back::assemble_state_machine>>,
-        Ts...>;
+    auto RootState  = back::enumerate_state_elements(back::counters<0, 0>{}, hsm::state<hsm::root_state>{}, std::move(state_parts)...);
+    namespace km    = kvasir::mpl;
+    using ca        = std::decay_t<decltype(tiny_tuple::get<0>(RootState))>;
+    using rootstate = std::decay_t<decltype(tiny_tuple::get<1>(RootState))>;
+    using sm_stats  = km::call<                                                                                                 //
+        km::unpack<                                                                                                            //
+            km::push_front<                                                                                                    //
+                hsm::back::assembly_status<tiny_tuple::map<tiny_tuple::detail::item<no_event, km::uint_<0>, true>>, 0, 1, 1>,  //
+                km::fold_left<hsm::back::assemble_state_machine>>>,
+        rootstate>;
     using sm = km::call<km::unpack<km::push_front<tiny_tuple::detail::item<root_state, hsm::back::state<0, 0, sm_stats::count, 0, 0, 0>>,
                                                   km::cfe<tiny_tuple::map>>>,
                         typename sm_stats::type>;
-    using final_sm =                                                 //
-        typename km::call<                                           //
-            km::push_front<                                          //
-                hsm::back::attach_transition_state<sm, root_state>,  //
-                km::fold_left<hsm::back::attach_transitions>>,
-            Ts...>::type;
+    using final_sm =                                                     //
+        typename km::call<                                               //
+            km::unpack<                                                  //
+                km::push_front<                                          //
+                    hsm::back::attach_transition_state<sm, root_state>,  //
+                    km::fold_left<hsm::back::attach_transitions>>>,
+            rootstate>::type;
 
     using state_id_type     = get_id_type<sm_stats::count>;
     using action_id_type    = get_id_type<ca::a_counter>;
