@@ -174,16 +174,17 @@ struct normal_transition
     template <typename T1>
     using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) >= cast(transition_flags::internal)>;
 };
-
 template <int I, int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, size_t Entry, size_t Exit, typename... Ts,
           typename Transitions, typename States>
 constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry, Exit, Ts...> sm, Transitions& transitions, States& states)
 {
-    using state_table_entry  = typename States::value_type;
-    using sorted_transitions = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
+    using state_table_entry      = typename States::value_type;
+    using sorted_transitions     = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
+    using just_normal_transition = kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition>>, sorted_transitions>;
     using num_normal_transition =
         kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<>>>, sorted_transitions>;
-    pply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
+
+    apply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
     states[I] = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
                                   static_cast<state_table_entry::action_id>(Entry),
                                   static_cast<state_table_entry::action_id>(Exit),

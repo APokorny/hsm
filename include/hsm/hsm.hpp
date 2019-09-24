@@ -169,7 +169,7 @@ struct state_machine
         tt_entry const* trans = nullptr;
         for (state_id search_state = current_state; trans == nullptr; search_state = parent_state(search_state))
         {
-            for (auto const& transition : get_event_transitions(current_state))
+            for (auto const& transition : get_event_transitions(search_state))
                 if (transition.event == event && (!transition.has_condition() || condition_table[transition.condition_index]()))
                     trans = &transition;
             if (search_state == parent_state(search_state)) break;

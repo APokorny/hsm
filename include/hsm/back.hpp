@@ -31,7 +31,7 @@ struct sm_traits
 };
 
 template <typename T>
-struct to_flag : kvasir::mpl::uint_<0>
+struct to_flag : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::normal)>
 {
 };
 

@@ -58,7 +58,7 @@ enum class transition_flags : uint8_t
     history              = 1,
     completion           = 2,
     internal             = 3,
-    none                 = 4,
+    normal               = 4,
     transition_type_mask = 0x7,
 
     to_final           = 0x8,

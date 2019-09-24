@@ -25,6 +25,7 @@ int  main()
                     enter                          = []() { std::cout << "in ccc state\n"; },      //
                     hsm::exit                      = []() { std::cout << "leaving ccc state\n"; }  //
                     ),
+                initial                    = "ccc"_state,
                 "jump_to_b"_ev / go_to_bbb = "bbb"_state)  //
             ),                                             //
         "bb"_state(                                        //
