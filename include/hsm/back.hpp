@@ -436,8 +436,8 @@ constexpr auto enumerate_state_elements(Counter c, hsm::state<K, Params...>&& sc
 {
     auto enum_item = enumerate_action_item(c, std::move(item));
     return enumerate_state_elements(tiny_tuple::get<0>(enum_item),
-                                    hsm::state<K, Params..., std::decay_t<decltype(tiny_tuple::get<1>(std::move(enum_item)))>>(
-                                        tiny_tuple::append(std::move(scope.data), tiny_tuple::get<1>(std::move(enum_item)))),
+                                    hsm::state<K, Params..., std::decay_t<decltype(std::move(tiny_tuple::get<1>(enum_item)))>>(
+                                        tiny_tuple::append(std::move(scope.data), std::move(tiny_tuple::get<1>(enum_item)))),
                                     std::move(items)...);
 }
 
