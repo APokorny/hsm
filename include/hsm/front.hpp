@@ -184,6 +184,10 @@ struct transition<TT, S, E, no_cond, no_action, no_dest>
     {
         return transition<TT, S, E, no_cond, no_action, D>{};
     }
+    constexpr auto operator=(internal_transition const&) const noexcept
+    {
+        return transition<internal_transition, S, E, no_cond, no_action, S>{};
+    }
 };
 
 template <typename TT, typename S, typename E, typename C>
@@ -206,6 +210,10 @@ struct transition<TT, S, E, C, no_action, no_dest>
     {
         return transition<TT, S, E, C, no_action, D>{std::move(cond)};
     }
+    constexpr auto operator=(internal_transition const&) const noexcept
+    {
+        return transition<internal_transition, S, E, C, no_action, S>{std::move(cond)};
+    }
 };
 
 template <typename TT, typename S, typename E, typename C, typename A>
@@ -221,6 +229,10 @@ struct transition<TT, S, E, C, A, no_dest>
     {
         return transition<TT, S, E, C, A, D>{std::move(cond), std::move(action)};
     }
+    constexpr auto operator=(internal_transition const&) const noexcept
+    {
+        return transition<internal_transition, S, E, C, A, S>{std::move(cond), std::move(action)};
+    }
 };
 
 template <typename TT, typename S, typename E, typename A>
@@ -235,6 +247,10 @@ struct transition<TT, S, E, no_cond, A, no_dest>
     constexpr auto operator=(D const&) const noexcept
     {
         return transition<TT, S, E, no_cond, A, D>{no_cond{}, std::move(action)};
+    }
+    constexpr auto operator=(internal_transition const&) const noexcept
+    {
+        return transition<internal_transition, S, E, no_cond, A, S>{no_cond{}, std::move(action)};
     }
 };
 
@@ -383,7 +399,6 @@ struct event
     {
         return n_trans<current_state, event<Key>, no_cond, no_action, D>{no_cond{}, no_action{}};
     }
-    template <typename D>
     constexpr auto operator=(internal_transition const&) const noexcept
     {
         return i_trans<current_state, event<Key>, no_cond, no_action, current_state>{no_cond{}, no_action{}};
