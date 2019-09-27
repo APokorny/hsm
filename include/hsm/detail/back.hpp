@@ -30,7 +30,7 @@ struct get_condition_impl
 };
 
 template <typename C, size_t Id>
-struct get_action_impl<condition_node<C, Id>>
+struct get_condition_impl<condition_node<C, Id>>
 {
     using type = kvasir::mpl::uint_<Id>;
 };
