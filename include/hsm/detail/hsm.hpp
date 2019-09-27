@@ -67,6 +67,7 @@ struct tt_entry
 
     constexpr back::transition_flags destination_type() const { return flags & back::transition_flags::dest_mask; }
     constexpr bool to_history() const { return is_set(destination_type(), back::transition_flags::to_shallow_history); }
+    constexpr bool to_final() const { return is_set(destination_type(), back::transition_flags::to_final); }
     constexpr bool has_action() const { return back::transition_flags::has_action == (flags & back::transition_flags::has_action); }
     constexpr bool has_condition() const
     {
