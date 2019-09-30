@@ -164,9 +164,14 @@ constexpr void apply_transitions(kvasir::mpl::list<Ts...>, std::integer_sequence
 }
 struct sort_transition
 {
+    constexpr static uint32_t tm       = cast(transition_flags::transition_type_mask);
+    constexpr static uint32_t internal = cast(transition_flags::internal);
+    constexpr static uint32_t normal   = cast(transition_flags::normal);
     template <typename T1, typename T2>
-    using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) <
-                                 (T2::flags & cast(transition_flags::transition_type_mask))>;
+    using f =
+        kvasir::mpl::bool_<(T1::flags & tm) < (T2::flags & tm) ||
+                           (((T1::flags & tm) == (T2::flags & tm) && (((T2::flags & tm) == normal) && T1::event_id > T2::event_id ||
+                                                                      (((T2::flags & tm) == internal) && T1::event_id > T2::event_id))))>;
 };
 
 struct normal_transition

@@ -26,10 +26,7 @@ struct empty_history
 struct internal_transition
 {
 };
-struct no_event
-{
-};
-
+struct no_event;
 struct current_state
 {
 };
@@ -417,6 +414,15 @@ struct event
             no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
     }
 };
+
+struct no_event : event<no_event>
+{
+    using event<no_event>::operator=;
+    using event<no_event>::operator[];
+    using event<no_event>::operator/;
+};
+
+constexpr no_event any;
 
 template <char... String>
 struct slit

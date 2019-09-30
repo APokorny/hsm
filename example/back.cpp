@@ -2,6 +2,8 @@
 #include "hsm/hsm.hpp"
 
 bool test_guard() { return true; }
+template <typename T>
+struct print;
 template <typename T, typename V>
 using item = tiny_tuple::detail::item<T, V>;
 int main()
@@ -19,8 +21,14 @@ int main()
                                    typename test_sm::raw_state_machine>::value);
     }
     {
-
         using front_test = decltype("a"_state + "e"_ev = hsm::internal);
+    }
+    {
+        using front_test = decltype(("a"_state + "e"_ev) = hsm::internal);
+    }
+
+    {
+        using front_test = decltype("a"_state + ("e"_ev = hsm::internal));
     }
 
     {
@@ -32,12 +40,11 @@ int main()
     }
     {
         using test_sm = decltype(create_state_machine("a"_state, "e"_ev, "e"_ev = hsm::internal));
-        static_assert(std::is_same<map<item<root_state, back::state<0, 0, 2, 0, 0, 0, back::transition<3, 1, 0, 0, 0>>>, item<no_event, km::uint_<0>>,
-                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0>>,
-                                       item<hsm::elit<'e'>, km::uint_<1>>>,
-                                   typename test_sm::raw_state_machine>::value);
+        static_assert(
+            std::is_same<map<item<root_state, back::state<0, 0, 2, 0, 0, 0, back::transition<3, 1, 0, 0, 0>>>, item<no_event, km::uint_<0>>,
+                             item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0>>, item<hsm::elit<'e'>, km::uint_<1>>>,
+                         typename test_sm::raw_state_machine>::value);
     }
-
     {
         using test_sm = decltype(create_state_machine("a"_state, "e"_ev, "a"_state + "e"_ev = hsm::X));
         static_assert(std::is_same<map<item<root_state, back::state<0, 0, 2, 0, 0, 0>>, item<no_event, km::uint_<0>>,
@@ -45,6 +52,14 @@ int main()
                                        item<hsm::elit<'e'>, km::uint_<1>>>,
                                    typename test_sm::raw_state_machine>::value);
     }
+    {
+        using test_sm = decltype(create_state_machine("a"_state, "e1"_ev, "e2"_ev));
+        static_assert(std::is_same<map<item<root_state, back::state<0, 0, 2, 0, 0, 0>>, item<no_event, km::uint_<0>>,
+                                       item<slit<'a'>, back::state<0, 1, 0, 0, 0, 0>>, item<hsm::elit<'e', '1'>, km::uint_<1>>,
+                                       item<hsm::elit<'e', '2'>, km::uint_<2>>>,
+                                   typename test_sm::raw_state_machine>::value);
+    }
+
     auto foo = create_state_machine(  //
         "foo"_state,                  //
         initial = "foo"_state,
@@ -65,5 +80,5 @@ int main()
                 "gully"_state + "terminate2"_ev = X,              //
                 hsm::exit / []() { std::cout << "exit other region\n"; }),
             "other_region"_state = X));
-   // std::cout << "blub:| " << foo << std::endl;
+    // std::cout << "blub:| " << foo << std::endl;
 }

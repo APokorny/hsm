@@ -101,7 +101,8 @@ struct state
 template <uint32_t Flags, size_t E, size_t D, size_t C, size_t A>
 struct transition
 {
-    static constexpr uint32_t flags = Flags;
+    static constexpr uint32_t flags    = Flags;
+    static constexpr uint32_t event_id = E;
 };
 
 template <typename SM, size_t Parent_id = 0, size_t Count = 0, size_t EvIds = 0, size_t TsCount = 0>
@@ -186,7 +187,7 @@ struct assemble_state_machine
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::transition<TT, S, E, C, A, D>>
     {
         using sm   = tiny_tuple::map<Items...>;
-        using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<E, sm>::value>::template f<
+        using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
             assembly_status<sm, P, SC, EC, TC + 1>,
             assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1>>;
     };
@@ -194,8 +195,19 @@ struct assemble_state_machine
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K>
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::state_ref<K>>
     {
-        using type = assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0>>>, P,
-                                     SC + 1, EC, TC>;
+        using sm   = tiny_tuple::map<Items...>;
+        using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
+            assembly_status<sm, P, SC, EC, TC>,
+            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0>>>, P, SC + 1, EC,
+                            TC>>;
+    };
+    template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K>
+    struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC>, hsm::event<K>>
+    {
+        using sm   = tiny_tuple::map<Items...>;
+        using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
+            assembly_status<sm, P, SC, EC, TC>,
+            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, km::uint_<EC>>>, P, SC, EC + 1, TC>>;
     };
 
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, typename K, typename... Elements>
