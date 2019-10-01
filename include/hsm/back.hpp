@@ -1,3 +1,9 @@
+/* ==========================================================================
+ Copyright (c) 2019 Andreas Pokorny
+ Distributed under the Boost Software License, Version 1.0. (See accompanying
+ file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+========================================================================== */
+
 #ifndef HSM_BACK_HPP_INCLUDED
 #define HSM_BACK_HPP_INCLUDED
 #include "hsm/hsm_fwd.hpp"
@@ -316,14 +322,6 @@ struct attach_transitions
     {
         using type = L;
     };
-
-#if 0
-    template <typename L, typename R>
-    struct f_impl<L, hsm::state_ref<R>>
-    {
-        using type = L;
-    };
-#endif
 
     template <typename... Items, typename Current, typename A, size_t Id>
     struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current>, hsm::entry_action<A, Id>>

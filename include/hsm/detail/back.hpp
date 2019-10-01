@@ -1,3 +1,9 @@
+/* ==========================================================================
+ Copyright (c) 2019 Andreas Pokorny
+ Distributed under the Boost Software License, Version 1.0. (See accompanying
+ file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+========================================================================== */
+
 #ifndef HSM_DETAIL_BACK_HPP_INCLUDED
 #define HSM_DETAIL_BACK_HPP_INCLUDED
 #include <hsm/hsm_fwd.hpp>
@@ -148,6 +154,9 @@ template <int TO, uint32_t TF, size_t E, size_t D, size_t C, size_t A, typename 
 constexpr int apply_transition(hsm::back::transition<TF, E, D, C, A>, Transitions& trans)
 {
     using tte = typename Transitions::value_type;
+    std::cout << " transition " << int(E) << " to:" << int(D)
+              << " condition id to encode: " << int(static_cast<typename tte::condition_id>(C))
+              << " action Id : " << int(static_cast<typename tte::action_id>(A)) << " flags : " << int(TF) << "\n";
     trans[TO] = tte{typename tte::event_id(E),                   //
                     typename tte::state_id(D),                   //
                     static_cast<typename tte::condition_id>(C),  //
@@ -189,6 +198,8 @@ constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry
     using num_normal_transition =
         kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<>>>, sorted_transitions>;
 
+    std::cout << "state id to encode: " << int(I) << " Action entry : " << int(Entry) << " Exit entry : " << int(Exit)
+              << " Transition offset: " << int(TO) << "\n";
     apply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
     states[I] = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
                                   static_cast<state_table_entry::action_id>(Entry),
@@ -206,10 +217,25 @@ constexpr void find_and_apply_state(SM&& sm, Transitions& transitions, std::arra
 {
 }
 
+template <typename T>
+char const* c_str(T)
+{
+    return "bla";
+}
+
+template <char... String>
+char const* c_str(slit<String...>)
+{
+    static const char b[] = {String..., '\0'};
+    return b;
+}
+
 template <int I, int TO, typename SM, typename Transitions, typename State, size_t SC>
 constexpr void find_and_apply_state(SM&& sm, Transitions& transitions, std::array<State, SC>& states)
 {
-    using state_found = typename kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<is_state<I>, kvasir::mpl::front<>>>, SM>::value;
+    using sf          = kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<is_state<I>, kvasir::mpl::front<>>>, SM>;
+    using state_found = typename sf::value;
+    std::cout << "state name " << c_str(typename sf::key{}) << " ";
     auto transition_offset = apply_state<I, TO>(state_found{}, transitions, states);
     find_and_apply_state<I + 1, decltype(transition_offset)::value>(std::forward<SM>(sm), transitions, states);
 }

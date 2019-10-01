@@ -25,6 +25,10 @@ auto sm = hsm::create_state_machine(...watch this place..);
 * support for orthogonal states
 * alternative event transitiion search dispatch mechanisms - currently only table based
 
+## License
+
+Boost Software License.
+
 ## Dependencies
 
 * Kvasir MPL
