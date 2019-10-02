@@ -16,9 +16,11 @@ else()
   message(FATAL_ERROR "requires at least c++14")
 endif()
 
-
+option(hsm_BUILD_TESTS "Build hsm examples and tests" ON)
 add_library(hsm INTERFACE)
 find_package(tiny_tuple REQUIRED)
 target_link_libraries(hsm INTERFACE tiny_tuple)
 target_include_directories(hsm INTERFACE include)
-add_subdirectory(example)
+if(hsm_BUILD_TESTS)
+  add_subdirectory(example)
+endif()
