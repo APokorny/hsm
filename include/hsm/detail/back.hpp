@@ -84,21 +84,21 @@ struct get_state_impl<C, hsm::final_state<T>>
 };
 
 template <typename A, size_t I, typename Actions>
-constexpr void set_action(action_node<A, I>&& node, Actions& actions)
+constexpr void set_action(action_node<A, I>& node, Actions& actions)
 {
     actions[I] = std::move(node.action);
 }
 template <typename C, size_t I, typename Conditions>
-constexpr void set_condition(condition_node<C, I>&& node, Conditions& conds)
+constexpr void set_condition(condition_node<C, I>& node, Conditions& conds)
 {
     conds[I] = std::move(node.condition);
 }
 template <typename Conditions>
-constexpr void set_condition(no_cond&&, Conditions&)
+constexpr void set_condition(no_cond, Conditions&)
 {
 }
 template <typename Actions>
-constexpr void set_action(no_action&&, Actions&)
+constexpr void set_action(no_action, Actions&)
 {
 }
 
@@ -113,26 +113,25 @@ constexpr void initialize_ca_array(hsm::state_ref<T>, Conditions&, Actions&)
 }
 
 template <typename A, size_t I, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(exit_action<A, I>&& exit, Conditions&, Actions& actions)
+constexpr void initialize_ca_array(exit_action<A, I>& exit, Conditions&, Actions& actions)
 {
     actions[I] = std::move(exit.action);
 }
 template <typename A, size_t I, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(entry_action<A, I>&& entry, Conditions&, Actions& actions)
+constexpr void initialize_ca_array(entry_action<A, I>& entry, Conditions&, Actions& actions)
 {
     actions[I] = std::move(entry.action);
 }
 template <typename TT, typename S, typename E, typename C, typename A, typename D, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::transition<TT, S, E, C, A, D>&& t, Conditions& conds, Actions& actions)
+constexpr void initialize_ca_array(hsm::transition<TT, S, E, C, A, D>& t, Conditions& conds, Actions& actions)
 {
-    set_action(std::move(t.action), actions);
-    set_condition(std::move(t.cond), conds);
+    set_action(t.action, actions);
+    set_condition(t.cond, conds);
 }
 template <typename K, typename... Cs, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::state<K, Cs...>&& sm, Conditions& conds, Actions& actions)
+constexpr void initialize_ca_array(hsm::state<K, Cs...>& sm, Conditions& conds, Actions& actions)
 {
-    tiny_tuple::foreach (std::move(sm.data),
-                         [&conds, &actions](auto&& element) { initialize_ca_array(std::move(element), conds, actions); });
+    tiny_tuple::foreach (sm.data, [&conds, &actions](auto& element) { initialize_ca_array(element, conds, actions); });
 }
 
 template <int Id>
@@ -176,8 +175,8 @@ struct sort_transition
     template <typename T1, typename T2>
     using f =
         kvasir::mpl::bool_<(T1::flags & tm) < (T2::flags & tm) ||
-                           (((T1::flags & tm) == (T2::flags & tm) && (((T2::flags & tm) == normal) && T1::event_id > T2::event_id ||
-                                                                      (((T2::flags & tm) == internal) && T1::event_id > T2::event_id))))>;
+                           (((T1::flags & tm) == (T2::flags & tm) && ((((T2::flags & tm) == normal) && T1::event_id > T2::event_id) ||
+                                                                      ((((T2::flags & tm) == internal) && T1::event_id > T2::event_id)))))>;
 };
 
 struct normal_transition
@@ -197,8 +196,8 @@ constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry
 
     apply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
     states[I] = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
-                                  static_cast<state_table_entry::action_id>(Entry),
-                                  static_cast<state_table_entry::action_id>(Exit),
+                                  static_cast<typename state_table_entry::action_id>(Entry),
+                                  static_cast<typename state_table_entry::action_id>(Exit),
                                   static_cast<typename state_table_entry::state_id>(Parent),
                                   static_cast<typename state_table_entry::state_id>(StateCount),
                                   static_cast<uint16_t>(sizeof...(Ts)),
@@ -207,30 +206,17 @@ constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry
     return kvasir::mpl::uint_<TO + sizeof...(Ts)>();
 }
 
-template <int I, int TO, typename SM, typename Transitions, typename State>
-constexpr void find_and_apply_state(SM&& sm, Transitions& transitions, std::array<State, I>& states)
+template <int I, int TO, typename SM, typename Transitions, typename State, size_t SC>
+constexpr typename std::enable_if<SC == I>::type find_and_apply_state(SM sm, Transitions& transitions, std::array<State, SC>& states)
 {
-}
-
-template <typename T>
-char const* c_str(T)
-{
-    return "bla";
-}
-
-template <char... String>
-char const* c_str(slit<String...>)
-{
-    static const char b[] = {String..., '\0'};
-    return b;
 }
 
 template <int I, int TO, typename SM, typename Transitions, typename State, size_t SC>
-constexpr void find_and_apply_state(SM&& sm, Transitions& transitions, std::array<State, SC>& states)
+constexpr typename std::enable_if<SC != I>::type find_and_apply_state(SM sm, Transitions& transitions, std::array<State, SC>& states)
 {
-    using state_found = kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<is_state<I>, kvasir::mpl::front<>>>, SM>::value;
+    using state_found = typename kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<is_state<I>, kvasir::mpl::front<>>>, SM>::value;
     auto transition_offset = apply_state<I, TO>(state_found{}, transitions, states);
-    find_and_apply_state<I + 1, decltype(transition_offset)::value>(std::forward<SM>(sm), transitions, states);
+    find_and_apply_state<I + 1, decltype(transition_offset)::value>(sm, transitions, states);
 }
 
 }  // namespace detail

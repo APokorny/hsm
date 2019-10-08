@@ -93,7 +93,7 @@ struct tt_entry_range
 }  // namespace detail
 
 template <size_t Count>
-using get_id_type = detail::get_id_type_impl<Count>::type;
+using get_id_type = typename detail::get_id_type_impl<Count>::type;
 
 }  // namespace hsm
 

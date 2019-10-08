@@ -17,13 +17,13 @@ template <typename Hsm, typename Traits>
 struct state_machine
 {
     using raw_state_machine = Hsm;
-    using state_id          = Traits::state_id;
-    using event_id          = Traits::event_id;
-    using condition_id      = Traits::condition_id;
-    using action_id         = Traits::action_id;
-    using transition_offset = Traits::transition_offset;
-    using tt_entry          = Traits::tt_entry;
-    using state_entry       = Traits::state_entry;
+    using state_id          = typename Traits::state_id;
+    using event_id          = typename Traits::event_id;
+    using condition_id      = typename Traits::condition_id;
+    using action_id         = typename Traits::action_id;
+    using transition_offset = typename Traits::transition_offset;
+    using tt_entry          = typename Traits::tt_entry;
+    using state_entry       = typename Traits::state_entry;
 
     using transition_range = hsm::detail::tt_entry_range<tt_entry const>;
     using transition_array = std::array<tt_entry, Traits::transition_count>;
@@ -216,8 +216,8 @@ struct state_machine
     template <typename Key>
     bool process_event(Key const& key)
     {
-        using event_type = tiny_tuple::value_type<back::unpack<Key>, Hsm>::type;
-        return process_event(static_cast<event_id>(event_type::value));
+        using event_type = typename tiny_tuple::value_type<back::unpack<Key>, Hsm>::type;
+        return process_event(static_cast<event_id>(event_type::value::value));
     }
     constexpr state_id current_state_id() const { return current_state; }
     template <typename Key>
@@ -260,14 +260,14 @@ constexpr auto create_state_machine(Ts&&... state_parts)
         back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, ca::a_counter, action_id_type, ca::c_counter,
                         condition_id_type, sm_stats::transition_count, get_id_type<sm_stats::transition_count * sizeof(tt_entry)>>;
     using sm_type          = state_machine<final_sm, traits>;
-    using transition_array = sm_type::transition_array;
-    using state_array      = sm_type::state_array;
-    using condition_array  = sm_type::condition_array;
-    using action_array     = sm_type::action_array;
+    using transition_array = typename sm_type::transition_array;
+    using state_array      = typename sm_type::state_array;
+    using condition_array  = typename sm_type::condition_array;
+    using action_array     = typename sm_type::action_array;
 
     condition_array conditions;
     action_array    actions;
-    back::initialize_ca_array(std::move(tiny_tuple::get<1>(RootState)), conditions, actions);
+    back::initialize_ca_array(tiny_tuple::get<1>(RootState), conditions, actions);
 
     transition_array transitions;
     state_array      states;

@@ -467,9 +467,9 @@ constexpr auto enumerate_action_item(Counter c, hsm::state<K, Elements...>&& ite
 }
 
 template <typename SM, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(SM&& sm, Conditions& conds, Actions& actions)
+constexpr void initialize_ca_array(SM& sm, Conditions& conds, Actions& actions)
 {
-    detail::initialize_ca_array(std::move(sm), conds, actions);
+    detail::initialize_ca_array(sm, conds, actions);
 }
 
 template <typename SM, typename Transitions, typename States>
