@@ -7,7 +7,9 @@
 #ifndef HSM_HSM_HPP_INCLUDED
 #define HSM_HSM_HPP_INCLUDED
 #include <array>
+#include <vector>
 #include <functional>
+#include <algorithm>
 #include "front.hpp"
 #include "back.hpp"
 
@@ -111,7 +113,7 @@ struct state_machine
         std::for_each(actions.rbegin(), actions.rend(), [this](auto a) { action_table[a](); });
         current_state = trans.dest;
     }
-    tt_entry const* restore_history(state_id id)
+    tt_entry const* restore_history(state_id)
     {
         // if history is set for id
         //    create transition to history (no cond no action) return ptr;
@@ -214,14 +216,14 @@ struct state_machine
     }
 
     template <typename Key>
-    bool process_event(Key const& key)
+    bool process_event(Key const&)
     {
         using event_type = typename tiny_tuple::value_type<back::unpack<Key>, Hsm>::type;
         return process_event(static_cast<event_id>(event_type::value::value));
     }
     constexpr state_id current_state_id() const { return current_state; }
     template <typename Key>
-    constexpr state_id get_state_id(Key const& key) const
+    constexpr state_id get_state_id(Key const&) const
     {
         return static_cast<state_id>(tiny_tuple::value_type<back::unpack<Key>, Hsm>::type::id);
     }

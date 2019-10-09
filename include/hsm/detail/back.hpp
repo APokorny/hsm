@@ -186,7 +186,7 @@ struct normal_transition
 };
 template <int I, int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, size_t Entry, size_t Exit, typename... Ts,
           typename Transitions, typename States>
-constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry, Exit, Ts...> sm, Transitions& transitions, States& states)
+constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry, Exit, Ts...>, Transitions& transitions, States& states)
 {
     using state_table_entry      = typename States::value_type;
     using sorted_transitions     = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
@@ -207,7 +207,7 @@ constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry
 }
 
 template <int I, int TO, typename SM, typename Transitions, typename State, size_t SC>
-constexpr typename std::enable_if<SC == I>::type find_and_apply_state(SM sm, Transitions& transitions, std::array<State, SC>& states)
+constexpr typename std::enable_if<SC == I>::type find_and_apply_state(SM, Transitions&, std::array<State, SC>&)
 {
 }
 

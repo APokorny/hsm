@@ -43,7 +43,7 @@ struct state_ref;
 struct no_cond
 {
     template <typename... Ts>
-    constexpr bool operator()(Ts&&... ts) const noexcept
+    constexpr bool operator()(Ts&&...) const noexcept
     {
         return true;
     }
@@ -52,7 +52,7 @@ struct no_cond
 struct no_action
 {
     template <typename... Ts>
-    constexpr void operator()(Ts&&... ts) const noexcept
+    constexpr void operator()(Ts&&...) const noexcept
     {
     }
 };
@@ -171,16 +171,16 @@ struct transition<TT, S, E, no_cond, no_action, no_dest>
     mutable no_cond   cond;
     mutable no_action action;
     template <typename C>
-    constexpr auto operator[](C&& cond) const noexcept
+    constexpr auto operator[](C&& c) const noexcept
     {
         return transition<TT, S, E, condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(cond)}};
+            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
     }
     template <typename A>
-    constexpr auto operator/(A&& action) const noexcept
+    constexpr auto operator/(A&& a) const noexcept
     {
         return transition<TT, S, E, no_cond, action_node<std::decay_t<A>>, no_dest>{
-            no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(action)}};
+            no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
     }
     template <typename D>
     constexpr auto operator=(D const&) const noexcept
@@ -203,10 +203,10 @@ struct transition<TT, S, E, C, no_action, no_dest>
     transition(C&& c) : cond{std::forward<C>(c)} {}
     transition(C&& c, no_action&&) : cond{std::forward<C>(c)} {}
     template <typename A>
-    constexpr auto operator/(A&& action) const noexcept
+    constexpr auto operator/(A&& a) const noexcept
     {
         return transition<TT, S, E, C, action_node<std::decay_t<A>>, no_dest>{
-            std::move(cond), action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(action)}};
+            std::move(cond), action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
     }
     template <typename D>
     constexpr auto operator=(D const&) const noexcept

@@ -44,7 +44,7 @@ struct state_entry
     state_id          children_count{0};
     uint16_t          transition_count{0};
     uint8_t           special_transition_count{0};
-    back::state_flags flags{0};
+    back::state_flags flags{back::state_flags::none};
 
     constexpr bool has_default() const { return is_set(flags, back::state_flags::has_default_transition); }
 
@@ -67,7 +67,7 @@ struct tt_entry
     StateId                dest{0};
     ConditionId            condition_index{0};
     ActionId               action_index{0};
-    back::transition_flags flags{0};
+    back::transition_flags flags{back::transition_flags::initial};
 
     constexpr back::transition_flags transition_type() const { return flags & back::transition_flags::transition_type_mask; }
 
