@@ -190,7 +190,6 @@ constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry
 {
     using state_table_entry      = typename States::value_type;
     using sorted_transitions     = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
-    using just_normal_transition = kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition>>, sorted_transitions>;
     using num_normal_transition =
         kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<>>>, sorted_transitions>;
 
