@@ -18,8 +18,8 @@ int main()
             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<hb::detail::normal_transition, kvasir::mpl::size<>>>,
                               sorted_transitions>;
         auto const special_tr = static_cast<uint8_t>(size_t(5) - num_normal_transition::value);
-        static_assert(std::is_same<sorted_transitions, expected>::value);
-        static_assert(special_tr == 3);
+        static_assert(std::is_same<sorted_transitions, expected>::value, "order: initial / history / completion / internal / normal");
+        static_assert(special_tr == 3, "three special transition expected");
     }
 
     {
@@ -30,8 +30,8 @@ int main()
             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<hb::detail::normal_transition, kvasir::mpl::size<>>>,
                               sorted_transitions>;
         auto const special_tr = static_cast<uint8_t>(size_t(1) - num_normal_transition::value);
-        static_assert(std::is_same<sorted_transitions, expected>::value);
-        static_assert(special_tr == 0);
+        static_assert(std::is_same<sorted_transitions, expected>::value, "normal transitions");
+        static_assert(special_tr == 0, "event transitions are not counted as special");
     }
 
     {
@@ -42,8 +42,8 @@ int main()
             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<hb::detail::normal_transition, kvasir::mpl::size<>>>,
                               sorted_transitions>;
         auto const special_tr = static_cast<uint8_t>(size_t(1) - num_normal_transition::value);
-        static_assert(std::is_same<sorted_transitions, expected>::value);
-        static_assert(special_tr == 0);
+        static_assert(std::is_same<sorted_transitions, expected>::value, "internal transitions");
+        static_assert(special_tr == 0, "internal transitions are not counted as special");
     }
 
     {
