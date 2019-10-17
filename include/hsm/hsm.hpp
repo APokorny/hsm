@@ -13,6 +13,8 @@
 #include "front.hpp"
 #include "back.hpp"
 
+#include <kvasir/mpl/algorithm/filter.hpp>
+#include <kvasir/mpl/sequence/join.hpp>
 namespace hsm
 {
 template <typename Hsm, typename Traits>
@@ -28,21 +30,16 @@ struct state_machine
     using state_entry       = typename Traits::state_entry;
 
     using transition_range = hsm::detail::tt_entry_range<tt_entry const>;
-    using transition_array = std::array<tt_entry, Traits::transition_count>;
-    using state_array      = std::array<state_entry, Traits::count>;
     using condition_array  = std::array<std::function<bool()>, Traits::condition_count>;
     using action_array     = std::array<std::function<void()>, Traits::action_count>;
-    const transition_array transition_table;
-    const state_array      state_table;
-    const condition_array  condition_table;
-    const action_array     action_table;
-    state_id               current_state{0};
+    tt_entry const*       transition_table;
+    state_entry const*    state_table;
+    const condition_array condition_table;
+    const action_array    action_table;
+    state_id              current_state{0};
 
-    constexpr state_machine(transition_array&& ts, state_array&& states, condition_array&& conditions, action_array&& actions)
-        : transition_table(std::move(ts)),
-          state_table(std::move(states)),
-          condition_table(std::move(conditions)),
-          action_table(std::move(actions))
+    constexpr state_machine(tt_entry const* ts, state_entry const* states, condition_array&& conditions, action_array&& actions)
+        : transition_table(ts), state_table(states), condition_table(std::move(conditions)), action_table(std::move(actions))
     {
     }
 
@@ -72,8 +69,8 @@ struct state_machine
     {
         state_entry const* search_state = &state_table[current_state];
         auto               contains     = [trans, &search_state, this]() {
-            return (search_state - state_table.data()) <= trans.dest &&
-                   (search_state - state_table.data() + search_state->children_count) >= trans.dest;
+            return (search_state - state_table) <= trans.dest &&
+                   (search_state - state_table + search_state->children_count) >= trans.dest;
         };
         auto execute_exit = [this](state_entry const* s) {
             // store state in history if nexesssary .. current_state or recently exited state
@@ -234,17 +231,18 @@ constexpr auto create_state_machine(Ts&&... state_parts)
 {
     auto RootState  = back::enumerate_state_elements(back::counters<0, 0>{}, hsm::state<hsm::root_state>{}, std::move(state_parts)...);
     namespace km    = kvasir::mpl;
-    using ca        = std::decay_t<decltype(tiny_tuple::get<0>(RootState))>;
-    using rootstate = std::decay_t<decltype(tiny_tuple::get<1>(RootState))>;
+    namespace tt    = tiny_tuple;
+    using ca        = std::decay_t<decltype(tt::get<0>(RootState))>;
+    using rootstate = std::decay_t<decltype(tt::get<1>(RootState))>;
     using sm_stats  = km::call<  //
         km::unpack<             //
             km::push_front<     //
-                hsm::back::assembly_status<tiny_tuple::map<tiny_tuple::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 1, 1>,
+                hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 1, 1>,
                 km::fold_left<hsm::back::assemble_state_machine>>>,
         rootstate>;
-    using sm = km::call<km::unpack<km::push_front<tiny_tuple::detail::item<root_state, hsm::back::state<0, 0, sm_stats::count, 0, 0, 0>>,
-                                                  km::cfe<tiny_tuple::map>>>,
-                        typename sm_stats::type>;
+    using sm        = km::call<
+        km::unpack<km::push_front<tt::detail::item<root_state, hsm::back::state<0, 0, sm_stats::count, 0, 0, 0>>, km::cfe<tt::map>>>,
+        typename sm_stats::type>;
     using final_sm =                                                     //
         typename km::call<                                               //
             km::unpack<                                                  //
@@ -261,21 +259,32 @@ constexpr auto create_state_machine(Ts&&... state_parts)
     using traits =
         back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, ca::a_counter, action_id_type, ca::c_counter,
                         condition_id_type, sm_stats::transition_count, get_id_type<sm_stats::transition_count * sizeof(tt_entry)>>;
-    using sm_type          = state_machine<final_sm, traits>;
-    using transition_array = typename sm_type::transition_array;
-    using state_array      = typename sm_type::state_array;
-    using condition_array  = typename sm_type::condition_array;
-    using action_array     = typename sm_type::action_array;
+    using sm_type         = state_machine<final_sm, traits>;
+    using condition_array = typename sm_type::condition_array;
+    using action_array    = typename sm_type::action_array;
+    using state_entry     = typename sm_type::state_entry;
+    using states          = km::call<  //
+        km::unpack<           //
+            km::filter<back::detail::is_any_state,
+                       km::stable_sort<back::detail::by_state_id,                          //
+                                       km::transform<km::cfe<tt::detail::value_type>>>>>,  //
+        final_sm>;                                                                         //
+    using transitions     = km::call<                                                               //
+        km::unpack<                                                                             //
+            km::transform<                                                                      //
+                back::detail::unpack_transitions<                                               //
+                    km::stable_sort<back::detail::sort_transition>                              //
+                    >,                                                                          //
+                km::join<>>                                                                     //
+            >,                                                                                  //
+        states>;
 
     condition_array conditions;
     action_array    actions;
-    back::initialize_ca_array(tiny_tuple::get<1>(RootState), conditions, actions);
+    back::initialize_ca_array(tt::get<1>(RootState), conditions, actions);
 
-    transition_array transitions;
-    state_array      states;
-    back::initialize_states<final_sm>(transitions, states);
-
-    return sm_type(std::move(transitions), std::move(states), std::move(conditions), std::move(actions));
+    return sm_type(back::get_transition_table<tt_entry>(transitions{}), back::get_state_table<state_entry>(states{}), std::move(conditions),
+                   std::move(actions));
 }
 
 template <typename SM, typename E>

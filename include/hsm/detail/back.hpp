@@ -149,74 +149,58 @@ struct is_state
     using f = f_impl<T>;
 };
 
-template <int TO, uint32_t TF, size_t E, size_t D, size_t C, size_t A, typename Transitions>
-constexpr int apply_transition(hsm::back::transition<TF, E, D, C, A>, Transitions& trans)
+struct is_any_state
 {
-    using tte = typename Transitions::value_type;
-    trans[TO] = tte{typename tte::event_id(E),                   //
-                    typename tte::state_id(D),                   //
-                    static_cast<typename tte::condition_id>(C),  //
-                    static_cast<typename tte::action_id>(A),     //
-                    static_cast<back::transition_flags>(TF)};
-    return 0;
-}
+    template <typename T>
+    struct f_impl : kvasir::mpl::bool_<false>
+    {
+    };
+    template <typename N, uint32_t F, size_t Id, size_t S, size_t P, size_t Entry, size_t Exit, typename... Ts>
+    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, Ts...>>> : kvasir::mpl::bool_<true>
+    {
+    };
+    template <typename T>
+    using f = f_impl<T>;
+};
 
-template <int TO, typename... Ts, int... Is, typename Transitions>
-constexpr void apply_transitions(kvasir::mpl::list<Ts...>, std::integer_sequence<int, Is...>, Transitions& trans)
-{
-    int f[] = {apply_transition<TO + Is>(Ts{}, trans)...};
-    (void)f;
-}
 struct sort_transition
 {
-    constexpr static uint32_t tm       = cast(transition_flags::transition_type_mask);
-    constexpr static uint32_t internal = cast(transition_flags::internal);
-    constexpr static uint32_t normal   = cast(transition_flags::normal);
+    constexpr static transition_flags tm       = transition_flags::transition_type_mask;
+    constexpr static transition_flags internal = transition_flags::internal;
+    constexpr static transition_flags normal   = transition_flags::normal;
     template <typename T1, typename T2>
     using f =
         kvasir::mpl::bool_<(T1::flags & tm) < (T2::flags & tm) ||
-                           (((T1::flags & tm) == (T2::flags & tm) && ((((T2::flags & tm) == normal) && T1::event_id > T2::event_id) ||
-                                                                      ((((T2::flags & tm) == internal) && T1::event_id > T2::event_id)))))>;
+                           (((T1::flags & tm) == (T2::flags & tm) && ((((T2::flags & tm) == normal) && T1::event > T2::event) ||
+                                                                      ((((T2::flags & tm) == internal) && T1::event > T2::event)))))>;
 };
+
+struct by_state_id
+{
+    template <typename T1, typename T2>
+    using f = kvasir::mpl::bool_<(T1::value::id < T2::value::id)>;
+};
+
+struct extract_transition_count
+{
+    template <typename T>
+    using f = kvasir::mpl::uint_<T::transition_count>;
+};
+
+
 
 struct normal_transition
 {
     template <typename T1>
-    using f = kvasir::mpl::bool_<(T1::flags & cast(transition_flags::transition_type_mask)) >= cast(transition_flags::internal)>;
+    using f = kvasir::mpl::bool_<(T1::flags & transition_flags::transition_type_mask) >= transition_flags::internal>;
 };
-template <int I, int TO, uint32_t Flags, size_t Id, size_t StateCount, size_t Parent, size_t Entry, size_t Exit, typename... Ts,
-          typename Transitions, typename States>
-constexpr auto apply_state(hsm::back::state<Flags, Id, StateCount, Parent, Entry, Exit, Ts...>, Transitions& transitions, States& states)
-{
-    using state_table_entry      = typename States::value_type;
-    using sorted_transitions     = kvasir::mpl::call<kvasir::mpl::stable_sort<sort_transition>, Ts...>;
-    using num_normal_transition =
-        kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<normal_transition, kvasir::mpl::size<>>>, sorted_transitions>;
 
-    apply_transitions<TO>(sorted_transitions{}, std::make_integer_sequence<int, sizeof...(Ts)>(), transitions);
-    states[I] = state_table_entry{static_cast<typename state_table_entry::transition_table_offset_type>(TO),
-                                  static_cast<typename state_table_entry::action_id>(Entry),
-                                  static_cast<typename state_table_entry::action_id>(Exit),
-                                  static_cast<typename state_table_entry::state_id>(Parent),
-                                  static_cast<typename state_table_entry::state_id>(StateCount),
-                                  static_cast<uint16_t>(sizeof...(Ts)),
-                                  static_cast<uint8_t>(sizeof...(Ts) - num_normal_transition::value),  // number of transitions
-                                  static_cast<back::state_flags>(Flags)};
-    return kvasir::mpl::uint_<TO + sizeof...(Ts)>();
-}
-
-template <int I, int TO, typename SM, typename Transitions, typename State, size_t SC>
-constexpr typename std::enable_if<SC == I>::type find_and_apply_state(SM, Transitions&, std::array<State, SC>&)
+template <typename C = kvasir::mpl::listify>
+struct unpack_transitions
 {
-}
-
-template <int I, int TO, typename SM, typename Transitions, typename State, size_t SC>
-constexpr typename std::enable_if<SC != I>::type find_and_apply_state(SM sm, Transitions& transitions, std::array<State, SC>& states)
-{
-    using state_found = typename kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<is_state<I>, kvasir::mpl::front<>>>, SM>::value;
-    auto transition_offset = apply_state<I, TO>(state_found{}, transitions, states);
-    find_and_apply_state<I + 1, decltype(transition_offset)::value>(sm, transitions, states);
-}
+    template <typename... T>
+    using f = typename kvasir::mpl::detail::unpack_impl<C, typename T::transitions...>::type;
+};
 
 }  // namespace detail
 }  // namespace back

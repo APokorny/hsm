@@ -13,7 +13,10 @@
 
 #include <kvasir/mpl/algorithm/fold_left.hpp>
 #include <kvasir/mpl/algorithm/transform.hpp>
+#include <kvasir/mpl/algorithm/count_if.hpp>
 #include <kvasir/mpl/algorithm/replace_if.hpp>
+#include <kvasir/mpl/functions/arithmetic/plus.hpp>
+#include <kvasir/mpl/sequence/take.hpp>
 #include <kvasir/mpl/sequence/push_back.hpp>
 namespace hsm
 {
@@ -101,14 +104,24 @@ struct action_flag<action_node<T, Id>> : kvasir::mpl::uint_<static_cast<uint8_t>
 template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions>
 struct state
 {
-    static constexpr size_t id = Id;
+    using transitions                                   = kvasir::mpl::list<Transitions...>;
+    static constexpr size_t            id               = Id;
+    static constexpr size_t            parent           = ParentId;
+    static constexpr size_t            children_count   = Size;
+    static constexpr size_t            entry            = Entry;
+    static constexpr size_t            exit             = Exit;
+    static constexpr size_t            transition_count = sizeof...(Transitions);
+    static constexpr back::state_flags flags            = static_cast<back::state_flags>(Flags);
 };
 
 template <uint32_t Flags, size_t E, size_t D, size_t C, size_t A>
 struct transition
 {
-    static constexpr uint32_t flags    = Flags;
-    static constexpr uint32_t event_id = E;
+    static constexpr back::transition_flags flags     = static_cast<back::transition_flags>(Flags);
+    static constexpr size_t                 dest      = D;
+    static constexpr size_t                 event     = E;
+    static constexpr size_t                 condition = C;
+    static constexpr size_t                 action    = A;
 };
 
 template <typename SM, size_t Parent_id = 0, size_t Count = 0, size_t EvIds = 0, size_t TsCount = 0>
@@ -472,12 +485,45 @@ constexpr void initialize_ca_array(SM& sm, Conditions& conds, Actions& actions)
     detail::initialize_ca_array(sm, conds, actions);
 }
 
-template <typename SM, typename Transitions, typename States>
-constexpr void initialize_states(Transitions& transitions, States& states)
+template <typename STE, typename... States>
+auto get_state_table(kvasir::mpl::list<States...>) noexcept
 {
-    detail::find_and_apply_state<0, 0>(SM{}, transitions, states);
+    namespace km                 = kvasir::mpl;
+    namespace hbd                = hsm::back::detail;
+    static constexpr STE table[] = {STE{
+        static_cast<typename STE::transition_table_offset_type>(km::call<                               //
+                                                                km::take<                               //
+                                                                    km::uint_<States::id>,              //
+                                                                    km::transform<                      //
+                                                                        hbd::extract_transition_count,  //
+                                                                        km::push_front<                 //
+                                                                            km::uint_<0>,               //
+                                                                            km::fold_left<km::plus<>>   //
+                                                                            >                           //
+                                                                        >                               //
+                                                                    >,
+                                                                States...>::value),
+        static_cast<typename STE::action_id>(States::entry),
+        static_cast<typename STE::action_id>(States::exit),
+        static_cast<typename STE::state_id>(States::parent),
+        static_cast<typename STE::state_id>(States::children_count),
+        static_cast<uint16_t>(States::transition_count),
+        static_cast<uint8_t>(kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
+                                               typename States::transitions>::value),
+        static_cast<back::state_flags>(States::flags),
+    }...};
+    return table;
 }
-
+template <typename TTE, typename... Transitions>
+auto get_transition_table(kvasir::mpl::list<Transitions...>) noexcept
+{
+    static constexpr TTE table[] = {TTE{typename TTE::event_id(Transitions::event),                       //
+                                        typename TTE::state_id(Transitions::dest),                        //
+                                        static_cast<typename TTE::condition_id>(Transitions::condition),  //
+                                        static_cast<typename TTE::action_id>(Transitions::action),        //
+                                        static_cast<back::transition_flags>(Transitions::flags)}...};
+    return table;
+}
 }  // namespace back
 }  // namespace hsm
 
