@@ -47,11 +47,11 @@ int main()
     }
 
     {
-        using type = hb::state<49u, 2ul, 1ul, 1ul, 4ul, 5ul, hsm::back::transition<0u, 0ul, 3ul, 0ul, 0ul>,
+        using type = hb::state<49u, 0ul, 1ul, 0ul, 4ul, 5ul, hsm::back::transition<0u, 0ul, 3ul, 0ul, 0ul>,
                                hsm::back::transition<4 | 32, 2ul, 5ul, 0ul, 9ul>>;
-        std::array<hsm::detail::tt_entry<unsigned char, unsigned char, unsigned char, unsigned char>, 2ul> trs;
-        std::array<hsm::detail::state_entry<unsigned char, unsigned char, unsigned char>, 1ul>             sts;
-        hsm::back::detail::apply_state<0, 0>(type{}, trs, sts);
+
+        using se      = hsm::detail::state_entry<unsigned char, unsigned char, unsigned char>;
+        se const* sts = hsm::back::get_state_table<se>(kvasir::mpl::list<type>{});
         if (sts[0].transition_count == 2 && sts[0].special_transition_count == 1) { std::cout << "success\n"; }
         else
         {

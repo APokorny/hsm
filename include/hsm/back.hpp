@@ -485,30 +485,49 @@ constexpr void initialize_ca_array(SM& sm, Conditions& conds, Actions& actions)
     detail::initialize_ca_array(sm, conds, actions);
 }
 
+template <typename SM>
+using extract_backend_states = km::call<  //
+    km::unpack<                           //
+        km::filter<back::detail::is_any_state,
+                   km::stable_sort<back::detail::by_state_id,                                  //
+                                   km::transform<km::cfe<tiny_tuple::detail::value_type>>>>>,  //
+    SM>;
+
+template <typename StateList>
+using extract_and_sort_transitions = km::call<                    //
+    km::unpack<                                                   //
+        km::transform<                                            //
+            back::detail::unpack_transitions<                     //
+                km::stable_sort<back::detail::sort_transition>>,  //
+            km::join<>>>,                                         //
+    StateList>;
+
 template <typename STE, typename... States>
 auto get_state_table(kvasir::mpl::list<States...>) noexcept
 {
     namespace km                 = kvasir::mpl;
     namespace hbd                = hsm::back::detail;
     static constexpr STE table[] = {STE{
-        static_cast<typename STE::transition_table_offset_type>(km::call<                               //
-                                                                km::take<                               //
-                                                                    km::uint_<States::id>,              //
-                                                                    km::transform<                      //
-                                                                        hbd::extract_transition_count,  //
-                                                                        km::push_front<                 //
-                                                                            km::uint_<0>,               //
-                                                                            km::fold_left<km::plus<>>   //
-                                                                            >                           //
-                                                                        >                               //
-                                                                    >,
-                                                                States...>::value),
+        static_cast<typename STE::transition_table_offset_type>(  //
+            km::call<                                             //
+                km::take<                                         //
+                    km::uint_<States::id>,                        //
+                    km::transform<                                //
+                        hbd::extract_transition_count,            //
+                        km::push_front<                           //
+                            km::uint_<0>,                         //
+                            km::fold_left<km::plus<>>             //
+                            >                                     //
+                        >                                         //
+                    >,
+                States...>::value),
         static_cast<typename STE::action_id>(States::entry),
         static_cast<typename STE::action_id>(States::exit),
         static_cast<typename STE::state_id>(States::parent),
         static_cast<typename STE::state_id>(States::children_count),
         static_cast<uint16_t>(States::transition_count),
-        static_cast<uint8_t>(kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
+        static_cast<uint8_t>(States::transition_count -
+                             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
                                                typename States::transitions>::value),
         static_cast<back::state_flags>(States::flags),
     }...};

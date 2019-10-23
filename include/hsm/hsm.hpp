@@ -263,21 +263,8 @@ constexpr auto create_state_machine(Ts&&... state_parts)
     using condition_array = typename sm_type::condition_array;
     using action_array    = typename sm_type::action_array;
     using state_entry     = typename sm_type::state_entry;
-    using states          = km::call<  //
-        km::unpack<           //
-            km::filter<back::detail::is_any_state,
-                       km::stable_sort<back::detail::by_state_id,                          //
-                                       km::transform<km::cfe<tt::detail::value_type>>>>>,  //
-        final_sm>;                                                                         //
-    using transitions     = km::call<                                                               //
-        km::unpack<                                                                             //
-            km::transform<                                                                      //
-                back::detail::unpack_transitions<                                               //
-                    km::stable_sort<back::detail::sort_transition>                              //
-                    >,                                                                          //
-                km::join<>>                                                                     //
-            >,                                                                                  //
-        states>;
+    using states          = back::extract_backend_states<final_sm>;
+    using transitions     = back::extract_and_sort_transitions<states>;
 
     condition_array conditions;
     action_array    actions;
