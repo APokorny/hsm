@@ -484,6 +484,9 @@ auto final_of(state_ref<K> const&) noexcept
     return final_state<state_ref<K>>{};
 }
 
+
+constexpr state_ref<root_state> root;
+
 }  // namespace hsm
 
 #endif
