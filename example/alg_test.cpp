@@ -7,9 +7,11 @@
 using hsm::literals::operator""_ev;
 using hsm::literals::operator""_state;
 
+struct f{};
+
 constexpr auto sm_with_multiple_transitions()
 {
-    return hsm::create_state_machine(  //
+    return hsm::create_state_machine<f>(  //
         "e1"_ev,                       //
         "a"_state,                     //
         "b"_state,                     //
@@ -20,15 +22,16 @@ constexpr auto sm_with_multiple_transitions()
 
 TEST_CASE("Pick first matching transition", "[algorithm][transition_search]")
 {
+    f c;
     auto sm = sm_with_multiple_transitions();
-    sm.start();
-    sm.process_event("e1"_ev);
+    sm.start(c);
+    sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
 }
 
 constexpr auto sm_with_any()
 {
-    return hsm::create_state_machine(  //
+    return hsm::create_state_machine<f>(  //
         "e1"_ev, "e2"_ev, "e3"_ev,     //
         "a"_state,                     //
         "b"_state,                     //
@@ -38,7 +41,7 @@ constexpr auto sm_with_any()
 }
 constexpr auto sm_with_any_internal()
 {
-    return hsm::create_state_machine(         //
+    return hsm::create_state_machine<f>(         //
         "e1"_ev, "e2"_ev, "e3"_ev,            //
         hsm::initial = "a"_state,             //
         "a"_state(hsm::any = hsm::internal),  //
@@ -48,28 +51,31 @@ constexpr auto sm_with_any_internal()
 }
 TEST_CASE("Handle Any event at normal transition", "[algorithm][any][normal]")
 {
+    f c;
     auto sm = sm_with_any();
-    sm.start();
-    sm.process_event("e3"_ev);
+    sm.start(c);
+    sm.process_event("e3"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("b"_state));
 }
 TEST_CASE("Prefer specific transition over any event transition", "[algorithm][any][normal]")
 {
+    f c;
     auto sm = sm_with_any();
-    sm.start();
-    sm.process_event("e1"_ev);
+    sm.start(c);
+    sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
 }
 TEST_CASE("Handle Any event at internal transition", "[algorithm][any][internal]")
 {
+    f c;
     auto sm = sm_with_any_internal();
-    sm.start();
+    sm.start(c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
-    REQUIRE(sm.process_event("e3"_ev));
+    REQUIRE(sm.process_event("e3"_ev, c));
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
-    REQUIRE(sm.process_event("e1"_ev));
+    REQUIRE(sm.process_event("e1"_ev, c));
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
-    REQUIRE(sm.process_event("e2"_ev));
+    REQUIRE(sm.process_event("e2"_ev, c));
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
 }
 

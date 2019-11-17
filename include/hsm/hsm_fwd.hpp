@@ -29,13 +29,13 @@ struct no_cond;
 struct no_dest;
 struct no_action;
 
-template <typename A, size_t Id = 0>
+template <typename A>
 struct exit_action;
-template <typename A, size_t Id = 0>
+template <typename A>
 struct entry_action;
-template <typename C, size_t Id = 0>
+template <typename C>
 struct condition_node;
-template <typename A, size_t Id = 0>
+template <typename A>
 struct action_node;
 
 namespace back

@@ -17,7 +17,7 @@
 #include <kvasir/mpl/sequence/join.hpp>
 namespace hsm
 {
-template <typename Hsm, typename Traits>
+template <typename Hsm, typename Context, typename Traits>
 struct state_machine
 {
     using raw_state_machine = Hsm;
@@ -30,16 +30,16 @@ struct state_machine
     using state_entry       = typename Traits::state_entry;
 
     using transition_range = hsm::detail::tt_entry_range<tt_entry const>;
-    using condition_array  = std::array<std::function<bool()>, Traits::condition_count>;
-    using action_array     = std::array<std::function<void()>, Traits::action_count>;
-    tt_entry const*       transition_table;
-    state_entry const*    state_table;
-    const condition_array condition_table;
-    const action_array    action_table;
-    state_id              current_state{0};
+    using condition_entry  = bool (*)(Context&);
+    using action_entry     = void (*)(Context&);
+    tt_entry const*        transition_table;
+    state_entry const*     state_table;
+    condition_entry const* conditions;
+    action_entry const*    actions;
+    state_id               current_state{0};
 
-    constexpr state_machine(tt_entry const* ts, state_entry const* states, condition_array&& conditions, action_array&& actions)
-        : transition_table(ts), state_table(states), condition_table(std::move(conditions)), action_table(std::move(actions))
+    constexpr state_machine(tt_entry const* ts, state_entry const* states, condition_entry const* cons, action_entry const* as)
+        : transition_table(ts), state_table(states), conditions(cons), actions(as)
     {
     }
 
@@ -58,27 +58,26 @@ struct state_machine
     }
     constexpr transition_range get_event_transitions(state_id id) const { return get_event_transitions(state_table[id]); }
 
-    void execute_enter_action(state_id id)
+    void execute_enter_action(state_id id, Context& con)
     {
         auto const& compound = state_table[id];
-        if ((compound.flags & back::state_flags::has_entry) == back::state_flags::has_entry) action_table[compound.enter_action]();
+        if ((compound.flags & back::state_flags::has_entry) == back::state_flags::has_entry) actions[compound.enter_action](con);
     }
     constexpr bool contains(state_id p, state_id test) const { return p <= test && test <= p + state_table[p].children_count; }
 
-    void handle_transition(tt_entry const& trans)
+    void handle_transition(tt_entry const& trans, Context& con)
     {
         state_entry const* search_state = &state_table[current_state];
         auto               contains     = [trans, &search_state, this]() {
-            return (search_state - state_table) <= trans.dest &&
-                   (search_state - state_table + search_state->children_count) >= trans.dest;
+            return (search_state - state_table) <= trans.dest && (search_state - state_table + search_state->children_count) >= trans.dest;
         };
-        auto execute_exit = [this](state_entry const* s) {
+        auto execute_exit = [this, &con](state_entry const* s) {
             // store state in history if nexesssary .. current_state or recently exited state
-            if (s->has_exit()) action_table[s->exit_action]();
+            if (s->has_exit()) actions[s->exit_action](con);
         };
-        auto execute_enter = [this](state_entry const* s) {
+        auto execute_enter = [this, &con](state_entry const* s) {
             // alternatively update the history on upwards --- this ought to be a policy
-            if (s->has_entry()) action_table[s->enter_action]();
+            if (s->has_entry()) actions[s->enter_action](con);
         };
         auto to_parent = [this](state_entry const*& s) { s = &state_table[s->parent]; };
 
@@ -86,7 +85,7 @@ struct state_machine
         if (current_state == trans.dest)
         {
             execute_exit(search_state);
-            if (trans.has_action()) action_table[trans.action_index]();
+            if (trans.has_action()) actions[trans.action_index](con);
             execute_enter(search_state);
             return;
         }
@@ -97,17 +96,15 @@ struct state_machine
             to_parent(search_state);
         }
 
-        if (trans.has_action()) action_table[trans.action_index]();
+        if (trans.has_action()) actions[trans.action_index](con);
 
         // constexpr if (necessary state stack is not empty)
-        std::vector<action_id> actions;
+        std::vector<action_id> enter_actions;
         for (state_entry const* state_to_enter_rec = &state_table[trans.dest]; state_to_enter_rec != search_state;
              to_parent(state_to_enter_rec))
-        {
-            if (state_to_enter_rec->has_entry()) actions.push_back(state_to_enter_rec->enter_action);
-        }
+            if (state_to_enter_rec->has_entry()) enter_actions.push_back(state_to_enter_rec->enter_action);
 
-        std::for_each(actions.rbegin(), actions.rend(), [this](auto a) { action_table[a](); });
+        std::for_each(enter_actions.rbegin(), enter_actions.rend(), [this, &con](auto a) { actions[a](con); });
         current_state = trans.dest;
     }
     tt_entry const* restore_history(state_id)
@@ -117,7 +114,7 @@ struct state_machine
         // else return history restore transition
         return nullptr;
     }
-    tt_entry const* completion(state_id id)
+    tt_entry const* completion(state_id id, Context& con)
     {
         auto const&     compound        = state_table[id];
         tt_entry const* cont_transition = nullptr;
@@ -125,7 +122,7 @@ struct state_machine
         {
             for (auto const& ttentry : get_special_transitions(compound))
                 if (ttentry.transition_type() == back::transition_flags::completion &&
-                    (!ttentry.has_condition() || condition_table[ttentry.condition_index]()))
+                    (!ttentry.has_condition() || conditions[ttentry.condition_index](con)))
                 {
                     cont_transition = &ttentry;
                     break;
@@ -134,7 +131,7 @@ struct state_machine
         return cont_transition;
     }
 
-    tt_entry const* initial_or_completion(state_id id)
+    tt_entry const* initial_or_completion(state_id id, Context& con)
     {
         auto const&     compound        = state_table[id];
         tt_entry const* cont_transition = nullptr;
@@ -143,7 +140,7 @@ struct state_machine
             // TODO  this needs to be adapted to support orthogonal regions..
             for (auto const& ttentry : get_special_transitions(compound))
                 if (ttentry.transition_type() == back::transition_flags::initial &&
-                    (!ttentry.has_condition() || condition_table[ttentry.condition_index]()))
+                    (!ttentry.has_condition() || conditions[ttentry.condition_index](con)))
                 {
                     cont_transition = &ttentry;
                     break;
@@ -153,7 +150,7 @@ struct state_machine
         {
             for (auto const& ttentry : get_special_transitions(compound))
                 if (ttentry.transition_type() == back::transition_flags::completion &&
-                    (!ttentry.has_condition() || condition_table[ttentry.condition_index]()))
+                    (!ttentry.has_condition() || conditions[ttentry.condition_index](con)))
                 {
                     cont_transition = &ttentry;
                     break;
@@ -164,36 +161,36 @@ struct state_machine
 
     constexpr state_id parent_state(state_id state) const { return state_table[state].parent; }
 
-    void process_transition_to_compound(tt_entry const* trans)
+    void process_transition_to_compound(tt_entry const* trans, Context& con)
     {
         while (trans)
         {
-            handle_transition(*trans);  // handle exit  and action enter cascade
+            handle_transition(*trans, con);  // handle exit  and action enter cascade
             if (trans->to_history())
                 trans = restore_history(current_state);
             else if (trans->to_final())
-                trans = completion(current_state);
+                trans = completion(current_state, con);
             else
-                trans = initial_or_completion(current_state);
+                trans = initial_or_completion(current_state, con);
         }
     }
 
    public:
-    void start()
+    void start(Context& con)
     {
-        execute_enter_action(state_id{0});
-        auto trans = initial_or_completion(state_id{0});
-        process_transition_to_compound(trans);
+        execute_enter_action(state_id{0}, con);
+        auto trans = initial_or_completion(state_id{0}, con);
+        process_transition_to_compound(trans, con);
     }
 
-    bool process_event(event_id event)
+    bool process_event(event_id event, Context& con)
     {
         tt_entry const* trans = nullptr;
         for (state_id search_state = current_state; trans == nullptr; search_state = parent_state(search_state))
         {
             for (auto const& transition : get_event_transitions(search_state))
                 if ((transition.event == event || transition.event == back::any_event_id) &&
-                    (!transition.has_condition() || condition_table[transition.condition_index]()))
+                    (!transition.has_condition() || conditions[transition.condition_index](con)))
                 {
                     trans = &transition;
                     break;
@@ -204,19 +201,19 @@ struct state_machine
         if (!trans) return false;
         if (trans->transition_type() == back::transition_flags::internal)
         {
-            if (trans->has_action()) action_table[trans->action_index]();
+            if (trans->has_action()) actions[trans->action_index](con);
             return true;
         }
 
-        process_transition_to_compound(trans);
+        process_transition_to_compound(trans, con);
         return true;
     }
 
     template <typename Key>
-    bool process_event(Key const&)
+    bool process_event(Key const&, Context& con)
     {
         using event_type = typename tiny_tuple::value_type<back::unpack<Key>, Hsm>::type;
-        return process_event(static_cast<event_id>(event_type::value::value));
+        return process_event(static_cast<event_id>(event_type::value::value), con);
     }
     constexpr state_id current_state_id() const { return current_state; }
     template <typename Key>
@@ -226,52 +223,44 @@ struct state_machine
     }
 };
 
-template <typename... Ts>
-constexpr auto create_state_machine(Ts&&... state_parts)
+template <typename Context, typename... Ts>
+constexpr auto create_state_machine(Ts&&...)
 {
-    auto RootState  = back::enumerate_state_elements(back::counters<0, 0>{}, hsm::state<hsm::root_state>{}, std::move(state_parts)...);
-    namespace km    = kvasir::mpl;
-    namespace tt    = tiny_tuple;
-    using ca        = std::decay_t<decltype(tt::get<0>(RootState))>;
-    using rootstate = std::decay_t<decltype(tt::get<1>(RootState))>;
-    using sm_stats  = km::call<  //
-        km::unpack<             //
-            km::push_front<     //
-                hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 1, 1>,
-                km::fold_left<hsm::back::assemble_state_machine>>>,
-        rootstate>;
-    using sm        = km::call<
-        km::unpack<km::push_front<tt::detail::item<root_state, hsm::back::state<0, 0, sm_stats::count, 0, 0, 0>>, km::cfe<tt::map>>>,
-        typename sm_stats::type>;
-    using final_sm =                                                     //
-        typename km::call<                                               //
-            km::unpack<                                                  //
-                km::push_front<                                          //
-                    hsm::back::attach_transition_state<sm, root_state>,  //
-                    km::fold_left<hsm::back::attach_transitions>>>,
-            rootstate>::type;
+    namespace km           = kvasir::mpl;
+    namespace tt           = tiny_tuple;
+    using input_expression = hsm::state<root_state, std::decay_t<Ts>...>;
+    using sm_stats         = km::call<  //
+        km::push_front<         //
+            hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 0, 1>,
+            km::fold_left<hsm::back::assemble_state_machine>>,
+        input_expression>;
+    using sm               = typename sm_stats::type;
+
+    using sm_res =                                                   //
+        typename km::call<                                           //
+            km::push_front<                                          //
+                hsm::back::attach_transition_state<sm, root_state>,  //
+                km::fold_left<hsm::back::attach_transitions>>,
+            input_expression>;
+    using final_sm = typename sm_res::type;
 
     using state_id_type     = get_id_type<sm_stats::count>;
-    using action_id_type    = get_id_type<ca::a_counter>;
-    using condition_id_type = get_id_type<ca::c_counter>;
+    using action_id_type    = get_id_type<sm_res::action_count>;
+    using condition_id_type = get_id_type<sm_res::condition_count>;
     using event_id_type     = get_id_type<sm_stats::event_count>;
     using tt_entry          = detail::tt_entry<event_id_type, state_id_type, condition_id_type, action_id_type>;
-    using traits =
-        back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, ca::a_counter, action_id_type, ca::c_counter,
-                        condition_id_type, sm_stats::transition_count, get_id_type<sm_stats::transition_count * sizeof(tt_entry)>>;
-    using sm_type         = state_machine<final_sm, traits>;
-    using condition_array = typename sm_type::condition_array;
-    using action_array    = typename sm_type::action_array;
-    using state_entry     = typename sm_type::state_entry;
-    using states          = back::extract_backend_states<final_sm>;
-    using transitions     = back::extract_and_sort_transitions<states>;
+    using traits      = back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count,
+                                   action_id_type, sm_res::condition_count, condition_id_type, sm_stats::transition_count,
+                                   get_id_type<sm_stats::transition_count * sizeof(tt_entry)>>;
+    using sm_type     = state_machine<final_sm, Context, traits>;
+    using state_entry = typename sm_type::state_entry;
+    using states      = back::extract_backend_states<final_sm>;
+    using transitions = back::extract_and_sort_transitions<states>;
+    using conditions  = back::extract_conditions<input_expression>;
+    using actions     = back::extract_actions<input_expression>;
 
-    condition_array conditions;
-    action_array    actions;
-    back::initialize_ca_array(tt::get<1>(RootState), conditions, actions);
-
-    return sm_type(back::get_transition_table<tt_entry>(transitions{}), back::get_state_table<state_entry>(states{}), std::move(conditions),
-                   std::move(actions));
+    return sm_type(back::get_transition_table<tt_entry>(transitions{}), back::get_state_table<state_entry>(states{}),
+                   back::get_conditions<Context>(conditions{}), back::get_actions<Context>(actions{}));
 }
 
 template <typename SM, typename E>

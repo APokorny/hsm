@@ -17,28 +17,22 @@ namespace back
 {
 namespace detail
 {
-template <typename T>
-struct get_action_impl
+template <typename C>
+struct count
 {
-    using type = kvasir::mpl::uint_<0>;
+    constexpr static size_t value = 1;
 };
 
-template <typename A, size_t Id>
-struct get_action_impl<action_node<A, Id>>
+template <>
+struct count<hsm::no_action>
 {
-    using type = kvasir::mpl::uint_<Id>;
+    constexpr static size_t value = 0;
 };
 
-template <typename T>
-struct get_condition_impl
+template <>
+struct count<hsm::no_cond>
 {
-    using type = kvasir::mpl::uint_<0>;
-};
-
-template <typename C, size_t Id>
-struct get_condition_impl<condition_node<C, Id>>
-{
-    using type = kvasir::mpl::uint_<Id>;
+    constexpr static size_t value = 0;
 };
 
 template <typename C, typename T>
@@ -83,56 +77,74 @@ struct get_state_impl<C, hsm::final_state<T>>
     using type = typename get_state_impl<C, T>::type;
 };
 
-template <typename A, size_t I, typename Actions>
-constexpr void set_action(action_node<A, I>& node, Actions& actions)
+struct is_action
 {
-    actions[I] = std::move(node.action);
-}
-template <typename C, size_t I, typename Conditions>
-constexpr void set_condition(condition_node<C, I>& node, Conditions& conds)
-{
-    conds[I] = std::move(node.condition);
-}
-template <typename Conditions>
-constexpr void set_condition(no_cond, Conditions&)
-{
-}
-template <typename Actions>
-constexpr void set_action(no_action, Actions&)
-{
-}
+    template <typename T>
+    struct f_impl : kvasir::mpl::bool_<false>
+    {
+    };
+    template <typename A>
+    struct f_impl<hsm::action_node<A>> : kvasir::mpl::bool_<true>
+    {
+    };
+    template <typename A>
+    struct f_impl<hsm::entry_action<A>> : kvasir::mpl::bool_<true>
+    {
+    };
+    template <typename A>
+    struct f_impl<hsm::exit_action<A>> : kvasir::mpl::bool_<true>
+    {
+    };
+    template <typename T>
+    using f = f_impl<T>;
+};
 
-template <typename T, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::event<T>, Conditions&, Actions&)
+struct is_condition
 {
-}
+    template <typename T>
+    struct f_impl : kvasir::mpl::bool_<false>
+    {
+    };
+    template <typename A>
+    struct f_impl<condition_node<A>> : kvasir::mpl::bool_<true>
 
-template <typename T, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::state_ref<T>, Conditions&, Actions&)
-{
-}
+    {
+    };
+    template <typename T>
+    using f = f_impl<T>;
+};
 
-template <typename A, size_t I, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(exit_action<A, I>& exit, Conditions&, Actions& actions)
+struct function_type
 {
-    actions[I] = std::move(exit.action);
-}
-template <typename A, size_t I, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(entry_action<A, I>& entry, Conditions&, Actions& actions)
-{
-    actions[I] = std::move(entry.action);
-}
-template <typename TT, typename S, typename E, typename C, typename A, typename D, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::transition<TT, S, E, C, A, D>& t, Conditions& conds, Actions& actions)
-{
-    set_action(t.action, actions);
-    set_condition(t.cond, conds);
-}
-template <typename K, typename... Cs, typename Conditions, typename Actions>
-constexpr void initialize_ca_array(hsm::state<K, Cs...>& sm, Conditions& conds, Actions& actions)
-{
-    tiny_tuple::foreach (sm.data, [&conds, &actions](auto& element) { initialize_ca_array(element, conds, actions); });
-}
+    template <typename T>
+    struct f_impl
+    {
+        using type = T;
+    };
+    template <typename A>
+    struct f_impl<hsm::condition_node<A>>
+    {
+        using type = A;
+    };
+
+    template <typename A>
+    struct f_impl<hsm::action_node<A>>
+    {
+        using type = A;
+    };
+    template <typename A>
+    struct f_impl<hsm::entry_action<A>>
+    {
+        using type = A;
+    };
+    template <typename A>
+    struct f_impl<hsm::exit_action<A>>
+    {
+        using type = A;
+    };
+    template <typename T>
+    using f = typename f_impl<T>::type;
+};
 
 template <int Id>
 struct is_state
@@ -169,10 +181,9 @@ struct sort_transition
     constexpr static transition_flags internal = transition_flags::internal;
     constexpr static transition_flags normal   = transition_flags::normal;
     template <typename T1, typename T2>
-    using f =
-        kvasir::mpl::bool_<(T1::flags & tm) < (T2::flags & tm) ||
-                           (((T1::flags & tm) == (T2::flags & tm) && ((((T2::flags & tm) == normal) && T1::event > T2::event) ||
-                                                                      ((((T2::flags & tm) == internal) && T1::event > T2::event)))))>;
+    using f = kvasir::mpl::bool_<(T1::flags & tm) < (T2::flags & tm) ||
+                                 (((T1::flags & tm) == (T2::flags & tm) && ((((T2::flags & tm) == normal) && T1::event > T2::event) ||
+                                                                            ((((T2::flags & tm) == internal) && T1::event > T2::event)))))>;
 };
 
 struct by_state_id
@@ -187,8 +198,6 @@ struct extract_transition_count
     using f = kvasir::mpl::uint_<T::transition_count>;
 };
 
-
-
 struct normal_transition
 {
     template <typename T1>
@@ -200,6 +209,33 @@ struct unpack_transitions
 {
     template <typename... T>
     using f = typename kvasir::mpl::detail::unpack_impl<C, typename T::transitions...>::type;
+};
+
+template <typename C, typename T>
+struct flatten_state_machine
+{
+    using type = kvasir::mpl::list<T>;
+};
+template <typename C, typename K, typename... Ts>
+struct flatten_state_machine<C, hsm::state<K, Ts...>>
+{
+    using type = typename kvasir::mpl::join<C>::template f<typename flatten_state_machine<C, Ts>::type...>::type;
+};
+
+template <typename T>
+struct flatten_transition
+{
+    using type = kvasir::mpl::list<T>;
+};
+template <typename K, typename... Ts>
+struct flatten_transition<hsm::state<K, Ts...>>
+{
+    using type = typename kvasir::mpl::join<kvasir::mpl::listify>::template f<typename detail::flatten_transition<Ts>::type...>;
+};
+template <typename TT, typename S, typename E, typename C, typename A, typename D>
+struct flatten_transition<hsm::transition<TT, S, E, C, A, D>>
+{
+    using type = kvasir::mpl::list<S, E, C, A, D>;
 };
 
 }  // namespace detail

@@ -57,10 +57,9 @@ struct no_action
     }
 };
 
-template <typename Condition, size_t Id>
+template <typename Condition>
 struct condition_node
 {
-    constexpr static size_t condition_id = Id;
     Condition               condition;
     condition_node(Condition&& c) : condition(std::forward<Condition>(c)) {}
     template <typename... Ts>
@@ -70,10 +69,9 @@ struct condition_node
     }
 };
 
-template <typename Action, size_t Id>
+template <typename Action>
 struct action_node
 {
-    constexpr static size_t action_id = Id;
     Action                  action;
     action_node(Action&& a) : action(std::forward<Action>(a)) {}
 
@@ -87,10 +85,9 @@ struct action_node
 struct no_dest
 {
 };
-template <typename A, size_t ActionId>
+template <typename A>
 struct entry_action
 {
-    static constexpr size_t action_id = ActionId;
     A                       action;
 };
 struct enter_node
@@ -110,10 +107,9 @@ struct enter_node
 
 constexpr enter_node enter;
 
-template <typename A, size_t ActionId>
+template <typename A>
 struct exit_action
 {
-    static constexpr size_t action_id = ActionId;
     A                       action;
 };
 struct exit_node
