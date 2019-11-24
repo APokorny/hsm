@@ -193,7 +193,8 @@ struct combine_flags<Flags, T, completion> : kvasir::mpl::uint_<Flags | static_c
 {
 };
 
-namespace km = kvasir::mpl;
+namespace km  = kvasir::mpl;
+namespace hbd = hsm::back::detail;
 struct assemble_state_machine
 {
     template <typename CS, typename Part>
@@ -418,46 +419,61 @@ using extract_and_sort_transitions = km::call<                    //
             km::join<>>>,                                         //
     StateList>;
 
+template <typename STE>
+struct state_table
+{
+    template <typename... States>
+    struct array
+    {
+        static constexpr STE table[] = {STE{
+            static_cast<typename STE::transition_table_offset_type>(  //
+                km::call<                                             //
+                    km::take<                                         //
+                        km::uint_<States::id>,                        //
+                        km::transform<                                //
+                            hbd::extract_transition_count,            //
+                            km::push_front<                           //
+                                km::uint_<0>,                         //
+                                km::fold_left<km::plus<>>             //
+                                >                                     //
+                            >                                         //
+                        >,
+                    States...>::value),
+            static_cast<typename STE::action_id>(States::entry),
+            static_cast<typename STE::action_id>(States::exit),
+            static_cast<typename STE::state_id>(States::parent),
+            static_cast<typename STE::state_id>(States::children_count),
+            static_cast<uint16_t>(States::transition_count),
+            static_cast<uint8_t>(States::transition_count -
+                                 kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
+                                                   typename States::transitions>::value),
+            static_cast<back::state_flags>(States::flags),
+        }...};
+    };
+};
+
 template <typename STE, typename... States>
 auto get_state_table(kvasir::mpl::list<States...>) noexcept
 {
-    namespace km                 = kvasir::mpl;
-    namespace hbd                = hsm::back::detail;
-    static constexpr STE table[] = {STE{
-        static_cast<typename STE::transition_table_offset_type>(  //
-            km::call<                                             //
-                km::take<                                         //
-                    km::uint_<States::id>,                        //
-                    km::transform<                                //
-                        hbd::extract_transition_count,            //
-                        km::push_front<                           //
-                            km::uint_<0>,                         //
-                            km::fold_left<km::plus<>>             //
-                            >                                     //
-                        >                                         //
-                    >,
-                States...>::value),
-        static_cast<typename STE::action_id>(States::entry),
-        static_cast<typename STE::action_id>(States::exit),
-        static_cast<typename STE::state_id>(States::parent),
-        static_cast<typename STE::state_id>(States::children_count),
-        static_cast<uint16_t>(States::transition_count),
-        static_cast<uint8_t>(States::transition_count -
-                             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
-                                               typename States::transitions>::value),
-        static_cast<back::state_flags>(States::flags),
-    }...};
-    return table;
+    return state_table<STE>::template array<States...>::table;
 }
+template <typename TTE>
+struct transition_table
+{
+    template <typename... Ts>
+    struct array
+    {
+        static constexpr TTE table[sizeof...(Ts)] = {TTE{typename TTE::event_id(Ts::event),                       //
+                                                         typename TTE::state_id(Ts::dest),                        //
+                                                         static_cast<typename TTE::condition_id>(Ts::condition),  //
+                                                         static_cast<typename TTE::action_id>(Ts::action),        //
+                                                         static_cast<back::transition_flags>(Ts::flags)}...};
+    };
+};
 template <typename TTE, typename... Transitions>
 auto get_transition_table(kvasir::mpl::list<Transitions...>) noexcept
 {
-    static constexpr TTE table[] = {TTE{typename TTE::event_id(Transitions::event),                       //
-                                        typename TTE::state_id(Transitions::dest),                        //
-                                        static_cast<typename TTE::condition_id>(Transitions::condition),  //
-                                        static_cast<typename TTE::action_id>(Transitions::action),        //
-                                        static_cast<back::transition_flags>(Transitions::flags)}...};
-    return table;
+    return transition_table<TTE>::template array<Transitions...>::table;
 }
 
 namespace detail
@@ -482,41 +498,32 @@ struct empty_object
     {
         Storage     storage{};
         char const* m  = &storage.t2.m;
-        T2 const*   t2 = reinterpret_cast<T2 const*>(m);
+        T2 const*   t2 = &storage.t2; // T2::m static_cast<T2 const*>(static_cast<void const*>(m));
         T const*    t  = static_cast<T const*>(t2);
         return *t;
     }
 };
 }  // namespace detail
-#if 0
-template <typename D, typename Context, typename T>
-constexpr D adaptive_cast(T&& t, typename std::enable_if<tiny_tuple::is_invocable<T, Context&>::value>::type* = nullptr)
-{
-    return t;
-}
 
-template <typename D, typename Context, typename T>
-constexpr D adaptive_cast(T&& t, typename std::enable_if<tiny_tuple::is_invocable<T>::value>::type* = nullptr)
+template <typename C>
+struct state_functions
 {
-    using type = decltype([t](Context&) { return t(); });
-    return detail::empty_object<type>::get();
-}
-#endif
-
+    template <typename... Cs>
+    struct array
+    {
+        static constexpr C table[sizeof...(Cs)] = {detail::empty_object<Cs>::get()...};
+    };
+};
 template <typename Context, typename... Cs>
 auto get_conditions(kvasir::mpl::list<Cs...>) noexcept
 {
-    using cond_type                    = bool (*)(Context&);
-    static cond_type table[] = {detail::empty_object<Cs>::get()...};
-    return table;
+    return state_functions<bool (*)(Context&)>::template array<Cs...>::table;
 }
 
 template <typename Context, typename... As>
 auto get_actions(kvasir::mpl::list<As...>) noexcept
 {
-    using action_type                    = void (*)(Context&);
-    static action_type table[] = {detail::empty_object<As>::get()...};
-    return table;
+    return state_functions<void (*)(Context&)>::template array<As...>::table;
 }
 
 }  // namespace back
