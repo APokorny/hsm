@@ -419,6 +419,10 @@ using extract_and_sort_transitions = km::call<                    //
             km::join<>>>,                                         //
     StateList>;
 
+#if (!defined(__GNUC__)) || (__GNUC__ > 5)
+#define HSM_USE_DIRECT_ARRAY_INITIALIZATION
+#endif
+#ifdef HSM_USE_DIRECT_ARRAY_INITIALIZATION
 template <typename STE>
 struct state_table
 {
@@ -457,6 +461,41 @@ auto get_state_table(kvasir::mpl::list<States...>) noexcept
 {
     return state_table<STE>::template array<States...>::table;
 }
+#else
+
+template <typename STE, typename... States>
+auto get_state_table(kvasir::mpl::list<States...>) noexcept
+{
+    static constexpr STE table[] = {STE{
+        static_cast<typename STE::transition_table_offset_type>(  //
+            km::call<                                             //
+                km::take<                                         //
+                    km::uint_<States::id>,                        //
+                    km::transform<                                //
+                        hbd::extract_transition_count,            //
+                        km::push_front<                           //
+                            km::uint_<0>,                         //
+                            km::fold_left<km::plus<>>             //
+                            >                                     //
+                        >                                         //
+                    >,
+                States...>::value),
+        static_cast<typename STE::action_id>(States::entry),
+        static_cast<typename STE::action_id>(States::exit),
+        static_cast<typename STE::state_id>(States::parent),
+        static_cast<typename STE::state_id>(States::children_count),
+        static_cast<uint16_t>(States::transition_count),
+        static_cast<uint8_t>(States::transition_count -
+                             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
+                                               typename States::transitions>::value),
+        static_cast<back::state_flags>(States::flags),
+    }...};
+
+    return table;
+}
+#endif
+
+#ifdef HSM_USE_DIRECT_ARRAY_INITIALIZATION
 template <typename TTE>
 struct transition_table
 {
@@ -475,6 +514,18 @@ auto get_transition_table(kvasir::mpl::list<Transitions...>) noexcept
 {
     return transition_table<TTE>::template array<Transitions...>::table;
 }
+#else
+template <typename TTE, typename... Ts>
+auto get_transition_table(kvasir::mpl::list<Ts...>) noexcept
+{
+    static constexpr TTE table[sizeof...(Ts)] = {TTE{typename TTE::event_id(Ts::event),                       //
+                                                     typename TTE::state_id(Ts::dest),                        //
+                                                     static_cast<typename TTE::condition_id>(Ts::condition),  //
+                                                     static_cast<typename TTE::action_id>(Ts::action),        //
+                                                     static_cast<back::transition_flags>(Ts::flags)}...};
+    return table;
+}
+#endif
 
 namespace detail
 {
@@ -490,40 +541,35 @@ struct empty_object
         char m;
     };
     union Storage {
-        constexpr Storage() noexcept : t1{} {}
+        Storage() noexcept : t1{} {}
         T1 t1;
         T2 t2;
     };
-    constexpr static T get() noexcept
+    static T get() noexcept
     {
         Storage     storage{};
         char const* m  = &storage.t2.m;
-        T2 const*   t2 = &storage.t2; // T2::m static_cast<T2 const*>(static_cast<void const*>(m));
+        T2 const*   t2 = reinterpret_cast<T2 const*>(m);
         T const*    t  = static_cast<T const*>(t2);
         return *t;
     }
 };
 }  // namespace detail
 
-template <typename C>
-struct state_functions
-{
-    template <typename... Cs>
-    struct array
-    {
-        static constexpr C table[sizeof...(Cs)] = {detail::empty_object<Cs>::get()...};
-    };
-};
 template <typename Context, typename... Cs>
 auto get_conditions(kvasir::mpl::list<Cs...>) noexcept
 {
-    return state_functions<bool (*)(Context&)>::template array<Cs...>::table;
+    using C                       = bool (*)(Context&);
+    static C table[sizeof...(Cs)] = {detail::empty_object<Cs>::get()...};
+    return table;
 }
 
 template <typename Context, typename... As>
 auto get_actions(kvasir::mpl::list<As...>) noexcept
 {
-    return state_functions<void (*)(Context&)>::template array<As...>::table;
+    using C                       = void (*)(Context&);
+    static C table[sizeof...(As)] = {detail::empty_object<As>::get()...};
+    return table;
 }
 
 }  // namespace back
