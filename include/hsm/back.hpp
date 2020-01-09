@@ -11,7 +11,6 @@
 #include "hsm/detail/hsm.hpp"
 #include "hsm/detail/back.hpp"
 
-#include <iostream>
 #include <kvasir/mpl/algorithm/fold_left.hpp>
 #include <kvasir/mpl/algorithm/transform.hpp>
 #include <kvasir/mpl/algorithm/count_if.hpp>
