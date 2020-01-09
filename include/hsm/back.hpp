@@ -359,7 +359,7 @@ struct attach_transitions
         constexpr static size_t dest_id   = get_state_id<sm, dest_state>::value;
         using transition_entry            = back::transition<to_flag<TT>::value | source_flag<S>::value | dest_flag<D>::value |
                                                       condition_flag<C>::value | action_flag<A>::value,
-                                                  event_id, dest_id, detail::count<C>::value ? CC : 0, detail::count<A>::value ? AC : 0>;
+                                                  event_id, dest_id, detail::count<C>::value ? CC : +0, detail::count<A>::value ? AC : +0>;
         using front_transition            = hsm::transition<TT, S, E, C, A, D>;
         using type                        = attach_transition_state<
             typename km::call<
