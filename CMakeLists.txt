@@ -18,12 +18,18 @@ endif()
 
 option(hsm_BUILD_TESTS "Build hsm examples and tests" ON)
 add_library(hsm INTERFACE)
+add_library(hsm::hsm ALIAS hsm)
 find_package(tiny_tuple REQUIRED)
 target_link_libraries(hsm INTERFACE tiny_tuple)
 target_include_directories(hsm INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
     )
-install(TARGETS hsm DESTINATION include)
+install(TARGETS hsm EXPORT hsm-Targets DESTINATION include)
+install(EXPORT hsm-Targets
+    NAMESPACE hsm::
+    DESTINATION lib/cmake/hsm
+    )
+
 if(hsm_BUILD_TESTS)
   add_subdirectory(example)
 endif()
