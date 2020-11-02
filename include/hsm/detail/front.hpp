@@ -18,7 +18,7 @@ template <typename D>
 struct is_state_ref : kvasir::mpl::bool_<false>
 {
 };
-template <typename D>
+HSM_TEMPLATE_LITERAL(D)
 struct is_state_ref<hsm::state_ref<D>> : kvasir::mpl::bool_<true>
 {
 };

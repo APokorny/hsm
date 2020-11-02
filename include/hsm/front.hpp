@@ -32,14 +32,9 @@ struct empty_history
 struct internal_transition
 {
 };
-struct no_event;
 struct current_state
 {
 };
-template <typename T>
-struct event;
-template <typename Key>
-struct state_ref;
 struct no_cond
 {
     template <typename... Ts>
@@ -60,7 +55,7 @@ struct no_action
 template <typename Condition>
 struct condition_node
 {
-    Condition               condition;
+    Condition condition;
     condition_node(Condition&& c) : condition(std::forward<Condition>(c)) {}
     template <typename... Ts>
     constexpr bool operator()(Ts&&... ts) const noexcept
@@ -72,7 +67,7 @@ struct condition_node
 template <typename Action>
 struct action_node
 {
-    Action                  action;
+    Action action;
     action_node(Action&& a) : action(std::forward<Action>(a)) {}
 
     template <typename... Ts>
@@ -88,7 +83,7 @@ struct no_dest
 template <typename A>
 struct entry_action
 {
-    A                       action;
+    A action;
 };
 struct enter_node
 {
@@ -110,7 +105,7 @@ constexpr enter_node enter;
 template <typename A>
 struct exit_action
 {
-    A                       action;
+    A action;
 };
 struct exit_node
 {
@@ -253,7 +248,7 @@ struct transition<TT, S, E, no_cond, A, no_dest>
     }
 };
 
-template <typename K, typename... Cs>
+template <typename Ref, typename... Cs>
 struct state
 {
     tiny_tuple::tuple<Cs...> data;  // temp hack
@@ -276,41 +271,40 @@ using s_trans = transition<start, current_state, no_event, Condition, Action, De
 template <typename State, typename Condition, typename Action, typename Destination>
 using h_trans = transition<empty_history, State, no_event, Condition, Action, Destination>;
 
-template <typename Key>
+HSM_TEMPLATE_LITERAL(Key)
 struct state_ref
 {
+    // workaround for type deduction
+    using this_type = state_ref;
     template <typename... Ts>
     constexpr auto operator()(Ts&&... ts) const noexcept
     {
-        return state<Key, Ts...>{std::move(ts)...};
+        return state<this_type, Ts...>{std::move(ts)...};
     }
-    template <typename T>
-    constexpr auto operator+(event<T> const&) const noexcept
-    {
-        return n_trans<state_ref<Key>, event<T>, no_cond, no_action, no_dest>{};
-    }
+    HSM_TEMPLATE_LITERAL(T)
+    constexpr auto operator+(event<T> const&) const noexcept { return n_trans<this_type, event<T>, no_cond, no_action, no_dest>{}; }
 
     template <typename TT, typename E, typename C, typename A, typename D>
     constexpr auto operator+(transition<TT, current_state, E, C, A, D>&& t) const noexcept
     {
-        return transition<TT, state_ref<Key>, E, C, A, D>{std::move(t.cond), std::move(t.action)};
+        return transition<TT, this_type, E, C, A, D>{std::move(t.cond), std::move(t.action)};
     }
     template <typename Dest>
     constexpr auto operator=(Dest const&) const noexcept
     {
-        return d_trans<state_ref<Key>, no_cond, no_action, Dest>{};
+        return d_trans<this_type, no_cond, no_action, Dest>{};
     }
     template <typename C>
     constexpr auto operator[](C&& c) const noexcept
     {
-        return d_trans<state_ref<Key>, condition_node<std::decay_t<C>>, no_action, no_dest>{
+        return d_trans<this_type, condition_node<std::decay_t<C>>, no_action, no_dest>{
             condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
     }
     template <typename A>
     constexpr auto operator/(A&& a) const noexcept
     {
-        return d_trans<state_ref<Key>, no_cond, action_node<std::decay_t<A>>, no_dest>{no_cond{},
-                                                                                       action_node<A>{std::forward<std::decay_t<A>>(a)}};
+        return d_trans<this_type, no_cond, action_node<std::decay_t<A>>, no_dest>{no_cond{},
+                                                                                  action_node<A>{std::forward<std::decay_t<A>>(a)}};
     }
 };
 
@@ -390,29 +384,33 @@ constexpr deep_history_state<current_state> deep_history;
 
 constexpr internal_transition internal;
 
-template <typename Key>
+HSM_TEMPLATE_LITERAL(Key)
 struct event
 {
+    using this_type = event;
+#ifdef HSM_USE_PROPER_LITERALS
+    //event(str_lit Key) {};
+#endif
     template <typename D>
     constexpr auto operator=(D const&) const noexcept
     {
-        return n_trans<current_state, event<Key>, no_cond, no_action, D>{no_cond{}, no_action{}};
+        return n_trans<current_state, this_type, no_cond, no_action, D>{no_cond{}, no_action{}};
     }
     constexpr auto operator=(internal_transition const&) const noexcept
     {
-        return i_trans<current_state, event<Key>, no_cond, no_action, current_state>{no_cond{}, no_action{}};
+        return i_trans<current_state, this_type, no_cond, no_action, current_state>{no_cond{}, no_action{}};
     }
 
     template <typename C>
     constexpr auto operator[](C&& c) const noexcept
     {
-        return n_trans<current_state, event<Key>, condition_node<std::decay_t<C>>, no_action, no_dest>{
+        return n_trans<current_state, this_type, condition_node<std::decay_t<C>>, no_action, no_dest>{
             condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}, no_action{}};
     }
     template <typename A>
     constexpr auto operator/(A&& a) const noexcept
     {
-        return n_trans<current_state, event<Key>, no_cond, action_node<std::decay_t<A>>, no_dest>{
+        return n_trans<current_state, this_type, no_cond, action_node<std::decay_t<A>>, no_dest>{
             no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
     }
 };
@@ -434,6 +432,27 @@ template <char... String>
 struct elit
 {
 };
+
+#ifdef HSM_USE_PROPER_LITERALS
+namespace literals
+{
+template <str_lit str>
+constexpr auto operator""_state() noexcept
+{
+    return hsm::state_ref{str};
+}
+
+template <str_lit str>
+constexpr auto operator""_ev() noexcept
+{
+    return hsm::event<elit<>>{};
+}
+}  // namespace literals
+
+using literals::operator""_ev;
+using literals::operator""_state;
+
+#else
 
 #if defined(__clang__)
 #pragma GCC diagnostic push
@@ -462,24 +481,16 @@ using literals::operator""_state;
 #pragma GCC diagnostic pop
 #endif
 
-template <typename K>
-auto history_of(state_ref<K> const&) noexcept
-{
-    return history_state<state_ref<K>>{};
-}
+#endif
 
-template <typename K>
-auto deep_history_of(state_ref<K> const&) noexcept
-{
-    return deep_history_state<state_ref<K>>{};
-}
+HSM_TEMPLATE_LITERAL(K)
+auto history_of(state_ref<K> const&) noexcept { return history_state<state_ref<K>>{}; }
 
-template <typename K>
-auto final_of(state_ref<K> const&) noexcept
-{
-    return final_state<state_ref<K>>{};
-}
+HSM_TEMPLATE_LITERAL(K)
+auto deep_history_of(state_ref<K> const&) noexcept { return deep_history_state<state_ref<K>>{}; }
 
+HSM_TEMPLATE_LITERAL(K)
+auto final_of(state_ref<K> const&) noexcept { return final_state<state_ref<K>>{}; }
 
 constexpr state_ref<root_state> root;
 

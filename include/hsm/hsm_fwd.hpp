@@ -7,13 +7,17 @@
 #ifndef HSM_HSM_FWD_HPP_INCLUDED
 #define HSM_HSM_FWD_HPP_INCLUDED
 
+#include "hsm/config.hpp"
 #include "hsm/detail/flag.hpp"
+#ifdef HSM_USE_PROPER_LITERALS
+#include "hsm/detail/str_lit.hpp"
+#endif
 
 namespace hsm
 {
-template <typename T>
+HSM_TEMPLATE_LITERAL(T)
 struct state_ref;
-template <typename T>
+HSM_TEMPLATE_LITERAL(T)
 struct event;
 struct internal_transition;
 struct root_state;
