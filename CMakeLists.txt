@@ -29,6 +29,7 @@ install(EXPORT hsm-Targets
     NAMESPACE hsm::
     DESTINATION lib/cmake/hsm
     )
+install(DIRECTORY include/hsm DESTINATION include)
 
 if(hsm_BUILD_TESTS)
   add_subdirectory(example)
