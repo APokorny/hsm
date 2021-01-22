@@ -24,12 +24,6 @@ target_link_libraries(hsm INTERFACE tiny_tuple)
 target_include_directories(hsm INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
     )
-install(TARGETS hsm EXPORT hsm-Targets DESTINATION include)
-install(EXPORT hsm-Targets
-    NAMESPACE hsm::
-    DESTINATION lib/cmake/hsm
-    )
-install(DIRECTORY include/hsm DESTINATION include)
 
 if(hsm_BUILD_TESTS)
   add_subdirectory(example)
