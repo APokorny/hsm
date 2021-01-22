@@ -25,7 +25,6 @@ target_include_directories(hsm INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURC
     $<INSTALL_INTERFACE:include>
     )
 
-
 if(hsm_BUILD_TESTS)
   add_subdirectory(example)
 endif()
