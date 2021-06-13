@@ -9,7 +9,7 @@ check_cxx_compiler_flag(-std=c++17 HAS_CXX17_FLAG)
 check_cxx_compiler_flag(-std=c++2a HAS_CXX20_FLAG)
 
 include(FetchContent)
-fetchcontent_declare(tiny_typle
+fetchcontent_declare(tiny_tuple
   GIT_REPOSITORY https://github.com/APokorny/tiny_tuple
   GIT_TAG development) # todo: pick a fixed revision
 
