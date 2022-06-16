@@ -1,6 +1,6 @@
 #include <iostream>
 #include <type_traits>
-#include "hsm/hsm.hpp"
+#include <hsm/hsm.hpp>
 
 int main()
 {
