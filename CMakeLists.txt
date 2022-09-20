@@ -5,11 +5,7 @@ cmake_minimum_required(VERSION 3.14)
 project(hsm VERSION 0.2.0 LANGUAGES CXX)
 
 include(cmake/get_cpm.cmake)
-CPMAddPackage(
-  NAME tiny_tuple
-  GITHUB_REPOSITORY APokorny/tiny_tuple
-  GIT_TAG 4812fdf1f05b32616720616d943ba8867dde982e
-  )
+CPMAddPackage("gh:APokorny/tiny_tuple#ca6c7d2f6c2c657d921bcfea8577a17e0e7a8e0a")
 CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.9.0")
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(hsm_STANDALONE ON)
