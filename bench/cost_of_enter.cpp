@@ -6,25 +6,7 @@ struct SC
 {
     int counter{0};
 };
-static constexpr int blip_count = 1000;
-NONIUS_BENCHMARK("handle_events_with_action",
-                 []
-                 {
-                     using namespace hsm::literals;
-                     auto sm = hsm::create_state_machine<SC>("blip"_ev,
-                                                             "a"_state(             //
-                                                                 "b"_state(         //
-                                                                     "ping"_state(  //
-                                                                         "blip"_ev / [](SC& c) { ++c.counter; } = "pong"_state))),
-                                                             "c"_state(             //
-                                                                 "d"_state(         //
-                                                                     "pong"_state(  //
-                                                                         "blip"_ev / [](SC& c) { ++c.counter; } = "ping"_state))),
-                                                             "blip"_ev = "ping"_state);
-                     SC   con;
-                     sm.start(con);
-                     for (int i : std::ranges::iota_view(1, blip_count)) sm.process_event("blip"_ev, con);
-                 })
+static constexpr int blip_count = 10;
 
 NONIUS_BENCHMARK("handle_events_with_enter",
                  []
@@ -71,9 +53,8 @@ NONIUS_BENCHMARK("handle_events_with_action_single_exit_action",
                  {
                      using namespace hsm::literals;
                      auto sm = hsm::create_state_machine<SC>(
-                         "blip"_ev,
-
-                         hsm::exit = [](SC& c) {},
+                         "blip"_ev,  //
+                         hsm::exit = [](SC& c) {},  //
                          "a"_state("b"_state("ping"_state("blip"_ev / [](SC& c) { ++c.counter; } = "pong"_state))),
                          "c"_state("d"_state("pong"_state("blip"_ev / [](SC& c) { ++c.counter; } = "ping"_state))),
                          "blip"_ev = "ping"_state);
@@ -81,6 +62,21 @@ NONIUS_BENCHMARK("handle_events_with_action_single_exit_action",
                      sm.start(con);
                      for (int i : std::ranges::iota_view(1, blip_count)) sm.process_event("blip"_ev, con);
                  })
+
+NONIUS_BENCHMARK("handle_events_with_action",
+                 []
+                 {
+                     using namespace hsm::literals;
+                     auto sm = hsm::create_state_machine<SC>(
+                         "blip"_ev,                 //
+                         "a"_state("b"_state("ping"_state("blip"_ev / [](SC& c) { ++c.counter; } = "pong"_state))),
+                         "c"_state("d"_state("pong"_state("blip"_ev / [](SC& c) { ++c.counter; } = "ping"_state))),
+                         "blip"_ev = "ping"_state);
+                     SC con;
+                     sm.start(con);
+                     for (int i : std::ranges::iota_view(1, blip_count)) sm.process_event("blip"_ev, con);
+                 })
+
 NONIUS_BENCHMARK("handle_events_with_action_enter_exit_action",
                  []
                  {
