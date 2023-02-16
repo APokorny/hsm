@@ -10,16 +10,16 @@ int  main()
     };
     auto debug_stuff = [](EmptyContext&) { std::cout << "Stay in CCC \n"; };
     auto go_to_bbb   = [](EmptyContext&) { std::cout << "go to bbb\n"; };
-    auto         foo = create_state_machine<EmptyContext>(  //
+    auto         foo         = create_state_machine<EmptyContext>(  //
         "jump_to_b"_ev,                             //
         "stay_in_ccc"_ev,
-        initial   = "c"_state,                                                    //
-        enter     = [](EmptyContext&) { std::cout << "in main state\n"; },        //
-        hsm::exit = [](EmptyContext&) { std::cout << "leaving root state\n"; },   //
-        "c"_state(                                                                //
-            enter     = [](EmptyContext&) { std::cout << "in c state\n"; },       //
-            hsm::exit = [](EmptyContext&) { std::cout << "leaving c state\n"; },  //
-            initial   = "cc"_state,
+        initial    = "c"_state,                                                    //
+        hsm::enter = [](EmptyContext&) { std::cout << "in main state\n"; },        //
+        hsm::exit  = [](EmptyContext&) { std::cout << "leaving root state\n"; },   //
+        "c"_state(                                                                 //
+            hsm::enter = [](EmptyContext&) { std::cout << "in c state\n"; },       //
+            hsm::exit  = [](EmptyContext&) { std::cout << "leaving c state\n"; },  //
+            initial    = "cc"_state,
             "cc"_state(                                                                                         //
                 enter     = [](EmptyContext&) { std::cout << "in cc state\n"; },                                //
                 hsm::exit = [](EmptyContext&) { std::cout << "leaving cc state\n"; },                           //
