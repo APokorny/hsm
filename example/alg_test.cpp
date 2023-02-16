@@ -7,7 +7,7 @@
 using hsm::literals::operator""_ev;
 using hsm::literals::operator""_state;
 
-struct f{};
+struct f{ int data{0};};
 
 constexpr auto sm_with_multiple_transitions()
 {
@@ -78,4 +78,39 @@ TEST_CASE("Handle Any event at internal transition", "[algorithm][any][internal]
     REQUIRE(sm.process_event("e2"_ev, c));
     REQUIRE(sm.current_state_id() == sm.get_state_id("a"_state));
 }
+
+
+constexpr auto sm_enter_exit()
+{
+    return hsm::create_state_machine<f>(         //
+        "e1"_ev,            //
+        hsm::initial = "a"_state,             //
+        "a"_state(
+            hsm::enter = [](f & self){ self.data=1;},
+            hsm::exit = [](f & self){ self.data=3;},
+            "e1"_ev = "b"_state //
+            ),  //
+        "b"_state,                            //
+         "e1"_ev = "a"_state
+    );
+}
+
+TEST_CASE("Ëxecute Enter Actions ", "[algorithm][struct][enter]")
+{
+    f c;
+    auto sm = sm_enter_exit();
+    sm.start(c);
+    REQUIRE(c.data == 1);
+}
+
+
+TEST_CASE("Ëxecute Exit Actions ", "[algorithm][struct][exit]")
+{
+    f c;
+    auto sm = sm_enter_exit();
+    sm.start(c);
+    sm.process_event("e1"_ev, c);
+    REQUIRE(c.data == 3);
+}
+
 

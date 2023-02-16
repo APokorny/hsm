@@ -5,15 +5,16 @@ cmake_minimum_required(VERSION 3.14)
 project(hsm VERSION 0.2.0 LANGUAGES CXX)
 
 include(cmake/get_cpm.cmake)
-CPMAddPackage("gh:APokorny/tiny_tuple#ca6c7d2f6c2c657d921bcfea8577a17e0e7a8e0a")
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.9.0")
+cpmaddpackage("gh:APokorny/tiny_tuple#ca6c7d2f6c2c657d921bcfea8577a17e0e7a8e0a")
+cpmaddpackage("gh:TheLartians/PackageProject.cmake@1.9.0")
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(hsm_STANDALONE ON)
 else()
   set(hsm_STANDALONE OFF)
 endif()
 
-option(hsm_BUILD_TESTS "Build hsm examples and tests" ${HSM_STANDALONE})
+option(hsm_BUILD_TESTS "Build hsm examples and tests" ${hsm_STANDALONE})
+option(hsm_BUILD_BENCHMARKS "Build hsm benchmarks" ${hsm_STANDALONE})
 add_library(hsm INTERFACE)
 add_library(hsm::hsm ALIAS hsm)
 target_compile_features(hsm INTERFACE cxx_std_17)
@@ -21,7 +22,7 @@ target_link_libraries(hsm INTERFACE tiny_tuple)
 target_include_directories(hsm INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   )
-packageProject(
+packageproject(
   NAME ${PROJECT_NAME}
   VERSION ${PROJECT_VERSION}
   BINARY_DIR ${PROJECT_BINARY_DIR}
@@ -36,6 +37,10 @@ packageProject(
   )
 
 if(hsm_BUILD_TESTS)
-  CPMAddPackage("gh:catchorg/Catch2@2.13.7")
+  cpmaddpackage("gh:catchorg/Catch2@2.13.7")
   add_subdirectory(example)
+endif()
+
+if(hsm_BUILD_BENCHMARKS)
+  add_subdirectory(bench)
 endif()

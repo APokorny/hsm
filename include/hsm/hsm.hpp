@@ -68,43 +68,45 @@ struct state_machine
     void handle_transition(tt_entry const& trans, Context& con)
     {
         state_entry const* search_state = &state_table[current_state];
-        auto               contains     = [trans, &search_state, this]() {
-            return (search_state - state_table) <= trans.dest && (search_state - state_table + search_state->children_count) >= trans.dest;
-        };
-        auto execute_exit = [this, &con](state_entry const* s) {
-            // store state in history if nexesssary .. current_state or recently exited state
-            if (s->has_exit()) actions[s->exit_action](con);
-        };
-        auto execute_enter = [this, &con](state_entry const* s) {
-            // alternatively update the history on upwards --- this ought to be a policy
-            if (s->has_entry()) actions[s->enter_action](con);
-        };
-        auto to_parent = [this](state_entry const*& s) { s = &state_table[s->parent]; };
 
-        // constexpr if history || enter actions
         if (current_state == trans.dest)
         {
-            execute_exit(search_state);
+            if constexpr (Traits::exit_count > 0)
+            {
+                if (search_state->has_exit()) actions[search_state->exit_action](con);
+            }
             if (trans.has_action()) actions[trans.action_index](con);
-            execute_enter(search_state);
+            if constexpr (Traits::enter_count > 0)
+            {
+                if (search_state->has_entry()) actions[search_state->enter_action](con);
+            }
             return;
         }
 
-        while (!contains())
+        if constexpr (Traits::enter_count > 0 || Traits::exit_count > 0)  // }|| history_count
         {
-            execute_exit(search_state);
-            to_parent(search_state);
+            while (!((search_state - state_table) <= trans.dest &&  //
+                     (search_state - state_table + search_state->children_count) >= trans.dest))
+            {
+                // TODO store state in history if nexesssary .. current_state or recently exited state
+                if constexpr (Traits::exit_count > 0)
+                    if (search_state->has_exit()) actions[search_state->exit_action](con);
+                search_state = &state_table[search_state->parent];
+            }
         }
 
         if (trans.has_action()) actions[trans.action_index](con);
 
         // constexpr if (necessary state stack is not empty)
-        std::vector<action_id> enter_actions;
-        for (state_entry const* state_to_enter_rec = &state_table[trans.dest]; state_to_enter_rec != search_state;
-             to_parent(state_to_enter_rec))
-            if (state_to_enter_rec->has_entry()) enter_actions.push_back(state_to_enter_rec->enter_action);
-
-        std::for_each(enter_actions.rbegin(), enter_actions.rend(), [this, &con](auto a) { actions[a](con); });
+        if constexpr (Traits::enter_count > 0)
+        {
+            std::vector<action_id> enter_actions;
+            // TODO also update the history on upwards --- this ought to be a policy
+            for (state_entry const* state_to_enter_rec = &state_table[trans.dest]; state_to_enter_rec != search_state;
+                 state_to_enter_rec                    = &state_table[state_to_enter_rec->parent])
+                if (state_to_enter_rec->has_entry()) enter_actions.push_back(state_to_enter_rec->enter_action);
+            std::for_each(enter_actions.rbegin(), enter_actions.rend(), [this, &con](auto a) { actions[a](con); });
+        }
         current_state = trans.dest;
     }
     tt_entry const* restore_history(state_id)
@@ -231,7 +233,7 @@ constexpr auto create_state_machine(Ts&&...)
     using input_expression = hsm::state<root_state, std::decay_t<Ts>...>;
     using sm_stats         = km::call<  //
         km::push_front<         //
-            hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 0, 1>,
+            hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 0, 1, 0, 0, 0>,
             km::fold_left<hsm::back::assemble_state_machine>>,
         input_expression>;
     using sm               = typename sm_stats::type;
@@ -249,9 +251,10 @@ constexpr auto create_state_machine(Ts&&...)
     using condition_id_type = get_id_type<sm_res::condition_count>;
     using event_id_type     = get_id_type<sm_stats::event_count>;
     using tt_entry          = detail::tt_entry<event_id_type, state_id_type, condition_id_type, action_id_type>;
-    using traits      = back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count,
-                                   action_id_type, sm_res::condition_count, condition_id_type, sm_stats::transition_count,
-                                   get_id_type<sm_stats::transition_count * sizeof(tt_entry)>>;
+    using traits =
+        back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count, action_id_type,
+                        sm_res::condition_count, condition_id_type, sm_stats::transition_count,
+                        get_id_type<sm_stats::transition_count * sizeof(tt_entry)>, sm_stats::enter_count, sm_stats::exit_count, 0>;
     using sm_type     = state_machine<final_sm, Context, traits>;
     using state_entry = typename sm_type::state_entry;
     using states      = back::extract_backend_states<final_sm>;
