@@ -31,11 +31,12 @@ struct get_id_type_impl<Count, std::enable_if_t<(Count >= 0 && Count < 255)>>
     using type = uint8_t;
 };
 
-template <typename StateId, typename TTOffset, typename ActionId>
+template <typename StateId, typename TTOffset, typename ActionId, typename HistoryId>
 struct state_entry
 {
     using action_id                    = ActionId;
     using state_id                     = StateId;
+    using history_id                   = HistoryId;
     using transition_table_offset_type = TTOffset;
     TTOffset          transition_table_offset{0};
     action_id         enter_action{0};
@@ -45,6 +46,7 @@ struct state_entry
     uint16_t          transition_count{0};
     uint8_t           special_transition_count{0};
     back::state_flags flags{back::state_flags::none};
+    history_id        history{0};
 
     constexpr bool has_default() const { return is_set(flags, back::state_flags::has_default_transition); }
 
@@ -72,7 +74,8 @@ struct tt_entry
     constexpr back::transition_flags transition_type() const { return flags & back::transition_flags::transition_type_mask; }
 
     constexpr back::transition_flags destination_type() const { return flags & back::transition_flags::dest_mask; }
-    constexpr bool to_history() const { return is_set(destination_type(), back::transition_flags::to_shallow_history); }
+    constexpr bool to_shallow_history() const { return is_set(destination_type(), back::transition_flags::to_shallow_history); }
+    constexpr bool to_deep_history() const { return is_set(destination_type(), back::transition_flags::to_shallow_history); }
     constexpr bool to_final() const { return is_set(destination_type(), back::transition_flags::to_final); }
     constexpr bool has_action() const { return back::transition_flags::has_action == (flags & back::transition_flags::has_action); }
     constexpr bool has_condition() const

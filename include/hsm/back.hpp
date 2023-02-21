@@ -18,22 +18,24 @@
 #include <kvasir/mpl/functions/arithmetic/plus.hpp>
 #include <kvasir/mpl/sequence/take.hpp>
 #include <kvasir/mpl/sequence/push_back.hpp>
+#include <kvasir/mpl/sequence/size.hpp>
 namespace hsm
 {
 namespace back
 {
 template <size_t StateCount, typename StateId, size_t EventCount, typename EventId, size_t ActionCount, typename ActionId,
           size_t ConditionCount, typename ConditionId, size_t TransitionCount, typename TransitionOffset, size_t EnterCount,
-          size_t ExitCount, size_t HistoryCount>
+          size_t ExitCount, size_t HistoryCount, typename HistoryId>
 struct sm_traits
 {
     using state_id                                = StateId;
     using event_id                                = EventId;
     using action_id                               = ActionId;
     using condition_id                            = ConditionId;
+    using history_id                              = HistoryId;
     using transition_offset                       = TransitionOffset;
     using tt_entry                                = hsm::detail::tt_entry<event_id, state_id, condition_id, action_id>;
-    using state_entry                             = hsm::detail::state_entry<state_id, transition_offset, action_id>;
+    using state_entry                             = hsm::detail::state_entry<state_id, transition_offset, action_id, history_id>;
     static constexpr state_id    count            = StateCount;
     static constexpr ActionId    action_count     = ActionCount;
     static constexpr ConditionId condition_count  = ConditionCount;
@@ -41,6 +43,10 @@ struct sm_traits
     static constexpr size_t      enter_count      = EnterCount;
     static constexpr size_t      exit_count       = ExitCount;
     static constexpr size_t      history_count    = HistoryCount;
+};
+
+struct history_table
+{
 };
 
 template <typename T>
@@ -105,7 +111,7 @@ struct action_flag<action_node<T>> : kvasir::mpl::uint_<static_cast<uint8_t>(tra
 {
 };
 
-template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions>
+template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, size_t H, typename... Transitions>
 struct state
 {
     using transitions                                   = kvasir::mpl::list<Transitions...>;
@@ -114,6 +120,7 @@ struct state
     static constexpr size_t            children_count   = Size;
     static constexpr size_t            entry            = Entry;
     static constexpr size_t            exit             = Exit;
+    static constexpr size_t            history          = H;
     static constexpr size_t            transition_count = sizeof...(Transitions);
     static constexpr back::state_flags flags            = static_cast<back::state_flags>(Flags);
 };
@@ -172,17 +179,19 @@ struct unpack_impl<event<T>>
 template <typename T>
 using unpack = typename unpack_impl<T>::type;
 
+template <typename T>
+struct get_history_flag;
+template <typename T>
+struct get_history_flag<history_state<T>> : kvasir::mpl::uint_<static_cast<uint32_t>(state_flags::has_history)>
+{
+};
+template <typename T>
+struct get_history_flag<deep_history_state<T>> : kvasir::mpl::uint_<static_cast<uint32_t>(state_flags::has_deep_history)>
+{
+};
+
 template <uint32_t Flags, typename... Ps>
 struct combine_flags : kvasir::mpl::uint_<Flags>
-{
-};
-template <uint32_t Flags, typename T>
-struct combine_flags<Flags, history_state<T>, empty_history> : kvasir::mpl::uint_<Flags | cast(state_flags::has_history)>
-{
-};
-template <uint32_t Flags, typename T>
-struct combine_flags<Flags, deep_history_state<T>, empty_history>
-    : kvasir::mpl::uint_<Flags | static_cast<uint32_t>(state_flags::has_deep_history)>
 {
 };
 template <uint32_t Flags, typename T>
@@ -237,8 +246,8 @@ struct assemble_state_machine
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
             assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0>>>, P, SC + 1, EC,
-                            TC, EnterC, ExitC>>;
+            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P, SC + 1,
+                            EC, TC, EnterC, ExitC>>;
     };
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K>
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC, EnterC, ExitC>, hsm::event<K>>
@@ -259,7 +268,7 @@ struct assemble_state_machine
                                     Elements...>;
         constexpr static uint32_t size = back_state::count - id - 1;
         using final_table              = km::call<
-            km::unpack<km::push_back<tiny_tuple::detail::item<unpack<K>, back::state<0, id, size, P, 0, 0>>, km::cfe<tiny_tuple::map>>>,
+            km::unpack<km::push_back<tiny_tuple::detail::item<unpack<K>, back::state<0, id, size, P, 0, 0, 0>>, km::cfe<tiny_tuple::map>>>,
             typename back_state::type>;
 
         using type = assembly_status<final_table, P, back_state::count, back_state::event_count, back_state::transition_count,
@@ -287,7 +296,7 @@ using get_event_id = std::decay_t<decltype(tiny_tuple::get<unpack<E>>(std::declv
 template <typename SM, typename S>
 using get_state_id = kvasir::mpl::uint_<std::decay_t<decltype(tiny_tuple::get<unpack<S>>(std::declval<SM>()))>::id>;
 
-template <typename Source, typename FrontTransition, typename Transition>
+template <typename Source, typename Destination, typename FrontTransition, typename Transition>
 struct apply_transition
 {
     template <typename T>
@@ -296,14 +305,39 @@ struct apply_transition
         using type = T;
     };
 
-    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
-    struct f_impl<tiny_tuple::detail::item<Source, hsm::back::state<Flags, Id, Size, ParentId, Entry, Exit, Transitions...>, F>>
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, size_t H, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, hsm::back::state<Flags, Id, Size, ParentId, Entry, Exit, H, Transitions...>, F>>
     {
         static constexpr uint32_t combined_flags =
             combine_flags<Flags, typename FrontTransition::source_type, typename FrontTransition::transition_type>::value;
         using type =
-            tiny_tuple::detail::item<Source, state<combined_flags, Id, Size, ParentId, Entry, Exit, Transitions..., Transition>, F>;
+            tiny_tuple::detail::item<Source, state<combined_flags, Id, Size, ParentId, Entry, Exit, H, Transitions..., Transition>>;
     };
+    template <typename T>
+    using f = typename f_impl<T>::type;
+};
+
+template <typename Source, size_t history_flag, size_t DestId, size_t HistoryId>
+struct apply_history
+{
+    template <typename T>
+    struct f_impl
+    {
+        using type = T;
+    };
+
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, hsm::back::state<Flags, Id, Size, ParentId, Entry, Exit, 0, Transitions...>, F>>
+    {
+        using type =
+            tiny_tuple::detail::item<Source, state<Flags | history_flag, Id, Size, ParentId, Entry, Exit, HistoryId, Transitions...>>;
+    };
+    template <size_t... Is, bool F>
+    struct f_impl<tiny_tuple::detail::item<history_table, std::integer_sequence<size_t, Is...>, F>>
+    {
+        using type = tiny_tuple::detail::item<history_table, std::integer_sequence<size_t, Is..., DestId>>;
+    };
+
     template <typename T>
     using f = typename f_impl<T>::type;
 };
@@ -317,11 +351,11 @@ struct apply_entry_action
         using type = T;
     };
 
-    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
-    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Entry, Exit, Transitions...>, F>>
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Exit, size_t H, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, 0, Exit, H, Transitions...>, F>>
     {
         using type = tiny_tuple::detail::item<
-            Source, state<Flags | static_cast<uint32_t>(state_flags::has_entry), Id, Size, ParentId, ActionId, Exit, Transitions...>>;
+            Source, state<Flags | static_cast<uint32_t>(state_flags::has_entry), Id, Size, ParentId, ActionId, Exit, H, Transitions...>>;
     };
 
     template <typename T>
@@ -337,11 +371,11 @@ struct apply_exit_action
         using type = T;
     };
 
-    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, typename... Transitions, bool F>
-    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Entry, Exit, Transitions...>, F>>
+    template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t H, typename... Transitions, bool F>
+    struct f_impl<tiny_tuple::detail::item<Source, back::state<Flags, Id, Size, ParentId, Entry, 0, H, Transitions...>, F>>
     {
         using type = tiny_tuple::detail::item<
-            Source, state<Flags | static_cast<uint32_t>(state_flags::has_exit), Id, Size, ParentId, Entry, ActionId, Transitions...>>;
+            Source, state<Flags | static_cast<uint32_t>(state_flags::has_exit), Id, Size, ParentId, Entry, ActionId, H, Transitions...>>;
     };
     template <typename T>
     using f = typename f_impl<T>::type;
@@ -371,6 +405,22 @@ struct attach_transitions
                                     Current, AC + 1, CC>;
     };
 
+    template <typename... Items, typename Current, size_t AC, size_t CC, typename S, typename D>
+    struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current, AC, CC>,
+                  hsm::transition<empty_history, S, no_event, no_cond, no_action, D>>
+    {
+        using sm                        = tiny_tuple::map<Items...>;
+        using source_state              = get_state<Current, S>;
+        using dest_state                = get_state<Current, D>;
+        constexpr static size_t dest_id = get_state_id<sm, dest_state>::value;
+        using history                   = typename tiny_tuple::value_type<history_table, sm>::type::value;
+        using type                      = attach_transition_state<
+            typename km::call<km::transform<apply_history<unpack<source_state>, get_history_flag<S>::value, dest_id, history::size()>,
+                                            km::cfe<tiny_tuple::map>>,
+                              Items...>,
+            Current, AC, CC>;
+    };
+
     template <typename... Items, typename Current, size_t AC, size_t CC, typename TT, typename S, typename E, typename C, typename A,
               typename D>
     struct f_impl<attach_transition_state<tiny_tuple::map<Items...>, Current, AC, CC>, hsm::transition<TT, S, E, C, A, D>>
@@ -387,7 +437,7 @@ struct attach_transitions
         using front_transition            = hsm::transition<TT, S, E, C, A, D>;
         using type                        = attach_transition_state<
             typename km::call<
-                km::transform<apply_transition<unpack<source_state>, front_transition, transition_entry>, km::cfe<tiny_tuple::map>>,
+                km::transform<apply_transition<unpack<source_state>, D, front_transition, transition_entry>, km::cfe<tiny_tuple::map>>,
                 Items...>,
             Current, AC + detail::count<A>::value, CC + detail::count<C>::value>;
     };
@@ -475,6 +525,7 @@ struct state_table
                                  kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
                                                    typename States::transitions>::value),
             static_cast<back::state_flags>(States::flags),
+            static_cast<typename STE::history_id>(States::history),
         }...};
     };
 };
@@ -512,6 +563,7 @@ auto get_state_table(kvasir::mpl::list<States...>) noexcept
                              kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::count_if<back::detail::normal_transition>>,
                                                typename States::transitions>::value),
         static_cast<back::state_flags>(States::flags),
+        static_cast<typename STE::history_id>(States::history),
     }...};
 
     return table;
@@ -595,7 +647,11 @@ auto get_actions(kvasir::mpl::list<As...>) noexcept
     static C table[sizeof...(As)] = {detail::empty_object<As>::get()...};
     return table;
 }
-
+template<typename StateIdType, typename T, T ...Is>
+constexpr auto get_history(std::integer_sequence<T, Is...>) -> std::array<StateIdType, sizeof...(Is)>
+{
+    return {static_cast<StateIdType>(Is)...};
+}
 }  // namespace back
 }  // namespace hsm
 #endif
