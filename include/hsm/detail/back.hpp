@@ -53,6 +53,12 @@ struct get_state_impl<C, hsm::internal_transition>
     using type = C;
 };
 
+template <typename C, typename T>
+struct get_state_impl<C, hsm::state_ref<T>>
+{
+    using type = T;
+};
+
 template <typename C>
 struct get_state_impl<C, hsm::initial_state>
 {
@@ -153,8 +159,8 @@ struct is_state
     struct f_impl : kvasir::mpl::bool_<false>
     {
     };
-    template <typename N, uint32_t F, size_t S, size_t P, size_t Entry, size_t Exit, typename... Ts>
-    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, Ts...>>> : kvasir::mpl::bool_<true>
+    template <typename N, uint32_t F, size_t S, size_t P, size_t Entry, size_t Exit, size_t H, typename... Ts>
+    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, H, Ts...>>> : kvasir::mpl::bool_<true>
     {
     };
     template <typename T>
@@ -167,8 +173,8 @@ struct is_any_state
     struct f_impl : kvasir::mpl::bool_<false>
     {
     };
-    template <typename N, uint32_t F, size_t Id, size_t S, size_t P, size_t Entry, size_t Exit, typename... Ts>
-    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, Ts...>>> : kvasir::mpl::bool_<true>
+    template <typename N, uint32_t F, size_t Id, size_t S, size_t P, size_t Entry, size_t Exit, size_t H, typename... Ts>
+    struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, H, Ts...>>> : kvasir::mpl::bool_<true>
     {
     };
     template <typename T>

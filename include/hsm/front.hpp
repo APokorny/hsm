@@ -129,6 +129,7 @@ struct transition
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = D;
     mutable C cond;
     mutable A action;
     transition(C&& c, A&& a) : cond{std::forward<C>(c)}, action{std::forward<A>(a)} {}
@@ -139,6 +140,7 @@ struct transition<TT, S, E, C, no_action, D>
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = D;
     mutable C         cond;
     mutable no_action action;
     transition(C&& c) : cond{std::forward<C>(c)} {}
@@ -150,6 +152,7 @@ struct transition<TT, S, E, no_cond, no_action, D>
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = D;
     mutable no_cond   cond;
     mutable no_action action;
 };
@@ -159,6 +162,7 @@ struct transition<TT, S, E, no_cond, no_action, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = no_dest;
     mutable no_cond   cond;
     mutable no_action action;
     template <typename C>
@@ -189,6 +193,7 @@ struct transition<TT, S, E, C, no_action, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = no_dest;
     C mutable cond;
     no_action mutable action;
     transition(C&& c) : cond{std::forward<C>(c)} {}
@@ -215,6 +220,7 @@ struct transition<TT, S, E, C, A, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = no_dest;
     C mutable cond;
     A mutable action;
     transition(C&& c, A&& a) : cond{std::forward<C>(c)}, action{std::forward<A>(a)} {}
@@ -234,6 +240,7 @@ struct transition<TT, S, E, no_cond, A, no_dest>
 {
     using transition_type = TT;
     using source_type     = S;
+    using dest_type       = no_dest;
     mutable no_cond cond;
     mutable A       action;
     transition(no_cond&&, A&& a) : action{std::forward<A>(a)} {}
@@ -268,8 +275,8 @@ using d_trans = transition<completion, State, no_event, Condition, Action, Desti
 template <typename Condition, typename Action, typename Destination>
 using s_trans = transition<start, current_state, no_event, Condition, Action, Destination>;
 
-template <typename State, typename Condition, typename Action, typename Destination>
-using h_trans = transition<empty_history, State, no_event, Condition, Action, Destination>;
+template <typename State, typename Destination>
+using h_trans = transition<empty_history, State, no_event, no_cond, no_action, Destination>;
 
 HSM_TEMPLATE_LITERAL(Key)
 struct state_ref
@@ -342,19 +349,7 @@ struct history_state
     template <typename Dest>
     constexpr auto operator=(Dest const&) const noexcept
     {
-        return h_trans<State, no_cond, no_action, Dest>{no_cond{}};
-    }
-    template <typename C>
-    constexpr auto operator[](C&& c) const noexcept
-    {
-        return h_trans<State, condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
-    }
-    template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
-    {
-        return h_trans<State, no_cond, action_node<std::decay_t<A>>, no_dest>{
-            no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
+        return h_trans<history_state<State>, Dest>{};
     }
 };
 constexpr history_state<current_state> history;
@@ -365,19 +360,7 @@ struct deep_history_state
     template <typename Dest>
     constexpr auto operator=(Dest const&) const noexcept
     {
-        return h_trans<State, no_cond, no_action, Dest>{no_cond{}};
-    }
-    template <typename C>
-    constexpr auto operator[](C&& c) const noexcept
-    {
-        return h_trans<State, condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
-    }
-    template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
-    {
-        return h_trans<State, no_cond, action_node<std::decay_t<A>>, no_dest>{
-            no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
+        return h_trans<deep_history_state<State>, Dest>{};
     }
 };
 constexpr deep_history_state<current_state> deep_history;
@@ -484,13 +467,13 @@ using literals::operator""_state;
 #endif
 
 HSM_TEMPLATE_LITERAL(K)
-auto history_of(state_ref<K> const&) noexcept { return history_state<state_ref<K>>{}; }
+constexpr auto history_of(state_ref<K> const&) noexcept { return history_state<state_ref<K>>{}; }
 
 HSM_TEMPLATE_LITERAL(K)
-auto deep_history_of(state_ref<K> const&) noexcept { return deep_history_state<state_ref<K>>{}; }
+constexpr auto deep_history_of(state_ref<K> const&) noexcept { return deep_history_state<state_ref<K>>{}; }
 
 HSM_TEMPLATE_LITERAL(K)
-auto final_of(state_ref<K> const&) noexcept { return final_state<state_ref<K>>{}; }
+constexpr auto final_of(state_ref<K> const&) noexcept { return final_state<state_ref<K>>{}; }
 
 constexpr state_ref<root_state> root;
 

@@ -10,11 +10,12 @@
 #include <vector>
 #include <functional>
 #include <algorithm>
-#include "front.hpp"
-#include "back.hpp"
+#include <hsm/front.hpp>
+#include <hsm/back.hpp>
 
 #include <kvasir/mpl/algorithm/filter.hpp>
 #include <kvasir/mpl/sequence/join.hpp>
+#include <kvasir/mpl/sequence/make_sequence.hpp>
 namespace hsm
 {
 template <typename Hsm, typename Context, typename Traits>
@@ -25,6 +26,7 @@ struct state_machine
     using event_id          = typename Traits::event_id;
     using condition_id      = typename Traits::condition_id;
     using action_id         = typename Traits::action_id;
+    using history_id        = typename Traits::history_id;
     using transition_offset = typename Traits::transition_offset;
     using tt_entry          = typename Traits::tt_entry;
     using state_entry       = typename Traits::state_entry;
@@ -38,8 +40,11 @@ struct state_machine
     action_entry const*    actions;
     state_id               current_state{0};
 
-    constexpr state_machine(tt_entry const* ts, state_entry const* states, condition_entry const* cons, action_entry const* as)
-        : transition_table(ts), state_table(states), conditions(cons), actions(as)
+    std::array<state_id, Traits::history_count> history;
+
+    constexpr state_machine(tt_entry const* ts, state_entry const* states, condition_entry const* cons, action_entry const* as,
+                            std::array<state_id, Traits::history_count>&& a)
+        : transition_table(ts), state_table(states), conditions(cons), actions(as), history{a}
     {
     }
 
@@ -83,14 +88,22 @@ struct state_machine
             return;
         }
 
-        if constexpr (Traits::enter_count > 0 || Traits::exit_count > 0)  // }|| history_count
+        if constexpr (Traits::enter_count > 0 || Traits::exit_count > 0 || Traits::history_count > 0)
         {
+            auto previous_state = current_state;
             while (!((search_state - state_table) <= trans.dest &&  //
                      (search_state - state_table + search_state->children_count) >= trans.dest))
             {
-                // TODO store state in history if nexesssary .. current_state or recently exited state
+                if constexpr (Traits::history_count > 0)
+                {
+                    if (search_state->has_deep_history())
+                        store_history(search_state->history, current_state);
+                    else if (search_state->has_history())
+                        store_history(search_state->history, previous_state);
+                }
                 if constexpr (Traits::exit_count > 0)
                     if (search_state->has_exit()) actions[search_state->exit_action](con);
+                if constexpr (Traits::history_count > 0) previous_state = search_state - state_table;
                 search_state = &state_table[search_state->parent];
             }
         }
@@ -101,7 +114,6 @@ struct state_machine
         if constexpr (Traits::enter_count > 0)
         {
             std::vector<action_id> enter_actions;
-            // TODO also update the history on upwards --- this ought to be a policy
             for (state_entry const* state_to_enter_rec = &state_table[trans.dest]; state_to_enter_rec != search_state;
                  state_to_enter_rec                    = &state_table[state_to_enter_rec->parent])
                 if (state_to_enter_rec->has_entry()) enter_actions.push_back(state_to_enter_rec->enter_action);
@@ -109,13 +121,8 @@ struct state_machine
         }
         current_state = trans.dest;
     }
-    tt_entry const* restore_history(state_id)
-    {
-        // if history is set for id
-        //    create transition to history (no cond no action) return ptr;
-        // else return history restore transition
-        return nullptr;
-    }
+    void            store_history(history_id id, state_id stored_history) { history[id] = stored_history; }
+    state_id        restore_history(state_id id) { return history[state_table[id].history]; }
     tt_entry const* completion(state_id id, Context& con)
     {
         auto const&     compound        = state_table[id];
@@ -167,10 +174,22 @@ struct state_machine
     {
         while (trans)
         {
-            handle_transition(*trans, con);  // handle exit  and action enter cascade
-            if (trans->to_history())
-                trans = restore_history(current_state);
-            else if (trans->to_final())
+            if constexpr (Traits::history_count > 0)
+            {
+                tt_entry entry;
+                if (trans->to_shallow_history() || trans->to_deep_history())
+                {
+                    (entry = *trans).dest = restore_history(trans->dest);
+                    trans                 = &entry;
+                }
+                handle_transition(*trans, con);  // handle exit  and action enter cascade
+            }
+            else
+            {
+                handle_transition(*trans, con);  // handle exit  and action enter cascade
+            }
+
+            if (trans->to_final())
                 trans = completion(current_state, con);
             else
                 trans = initial_or_completion(current_state, con);
@@ -180,7 +199,7 @@ struct state_machine
    public:
     void start(Context& con)
     {
-        execute_enter_action(state_id{0}, con);
+        if constexpr (Traits::enter_count > 0) { execute_enter_action(state_id{0}, con); }
         auto trans = initial_or_completion(state_id{0}, con);
         process_transition_to_compound(trans, con);
     }
@@ -231,9 +250,11 @@ constexpr auto create_state_machine(Ts&&...)
     namespace km           = kvasir::mpl;
     namespace tt           = tiny_tuple;
     using input_expression = hsm::state<root_state, std::decay_t<Ts>...>;
-    using sm_stats         = km::call<  //
-        km::push_front<         //
-            hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>>, 0, 0, 1, 0, 0, 0>,
+    using sm_stats         = km::call<                                                                             //
+        km::push_front<                                                                                    //
+            hsm::back::assembly_status<tt::map<tt::detail::item<no_event, km::uint_<back::any_event_id>>,  //
+                                               tt::detail::item<back::history_table, std::integer_sequence<size_t>>>,
+                                       0, 0, 1, 0, 0, 0>,
             km::fold_left<hsm::back::assemble_state_machine>>,
         input_expression>;
     using sm               = typename sm_stats::type;
@@ -250,20 +271,23 @@ constexpr auto create_state_machine(Ts&&...)
     using action_id_type    = get_id_type<sm_res::action_count>;
     using condition_id_type = get_id_type<sm_res::condition_count>;
     using event_id_type     = get_id_type<sm_stats::event_count>;
+    using history           = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
+    using history_id_type   = get_id_type<history::size()>;
     using tt_entry          = detail::tt_entry<event_id_type, state_id_type, condition_id_type, action_id_type>;
-    using traits =
-        back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count, action_id_type,
-                        sm_res::condition_count, condition_id_type, sm_stats::transition_count,
-                        get_id_type<sm_stats::transition_count * sizeof(tt_entry)>, sm_stats::enter_count, sm_stats::exit_count, 0>;
-    using sm_type     = state_machine<final_sm, Context, traits>;
-    using state_entry = typename sm_type::state_entry;
-    using states      = back::extract_backend_states<final_sm>;
-    using transitions = back::extract_and_sort_transitions<states>;
-    using conditions  = back::extract_conditions<input_expression>;
-    using actions     = back::extract_actions<input_expression>;
+    using traits            = back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count,
+                                   action_id_type, sm_res::condition_count, condition_id_type, sm_stats::transition_count,
+                                   get_id_type<sm_stats::transition_count * sizeof(tt_entry)>, sm_stats::enter_count, sm_stats::exit_count,
+                                   history::size(), history_id_type>;
+    using sm_type           = state_machine<final_sm, Context, traits>;
+    using state_entry       = typename sm_type::state_entry;
+    using states            = back::extract_backend_states<final_sm>;
+    using transitions       = back::extract_and_sort_transitions<states>;
+    using conditions        = back::extract_conditions<input_expression>;
+    using actions           = back::extract_actions<input_expression>;
 
     return sm_type(back::get_transition_table<tt_entry>(transitions{}), back::get_state_table<state_entry>(states{}),
-                   back::get_conditions<Context>(conditions{}), back::get_actions<Context>(actions{}));
+                   back::get_conditions<Context>(conditions{}), back::get_actions<Context>(actions{}),
+                   back::get_history<state_id_type>(history{}));
 }
 
 template <typename SM, typename E>

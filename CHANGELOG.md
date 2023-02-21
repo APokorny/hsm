@@ -1,11 +1,31 @@
 
 # Changelog
 
-# [Unreleased]
+## Version 0.2.0
 In this version hsm comes with a few more bug fixes and faster state machine execution.
 So if you have no need for enter or exit actions the execution is now noticeable faster.
 Not having enter actions skips one expensive step when entering a deep hierachy.
 Not having both enter and exit actions skips the parent state entirely.
+Also history is now working - take a look at the unit test for usage. History
+is declared by adding a history assignment to a state:
+```
+   "some"_state(
+      hsm::deep_history = "first_entry"_state, // when no history is set history info will point to "first_entry"
+      // or if the deep history is not needed:
+      hsm::history = "first_entry"_state,
+      // definitions like the above cannot contain conditions or actions
+      )
+      
+   // history can be accessed via transitions, just wrap the target state with history:
+   "trigger"_ev = hsm::deep_history_of("some"_state)
+   
+   // or in case of shallow history:
+   "trigger"_ev = hsm::history_of("some"_state)
+   
+```
+
+**Feature**: history support
+- basic support is in place, error handling missing
 
 **Feature**: build system
 - move towards fetch content and simpler builds
