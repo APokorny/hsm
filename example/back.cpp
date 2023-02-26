@@ -26,7 +26,7 @@ int main()
         using test_sm = decltype(create_state_machine<Empty>("a"_state, "e"_ev, "a"_state + "e"_ev = "a"_state));
         static_assert(std::is_same<map<item<no_event, km::uint_<0>>,  //
                                        item<back::history_table, std::integer_sequence<size_t>>,
-                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0, back::transition<4, 1, 1, 0, 0>>>,  //
+                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0, back::transition<3, 1, 1, 0, 0>>>,  //
                                        item<hsm::elit<'e'>, km::uint_<1>>,                                                       //
                                        item<root_state, back::state<0, 0, 1, 0, 0, 0, 0>>>,                                      //
                                    typename test_sm::raw_state_machine>::value,
@@ -47,7 +47,7 @@ int main()
         using test_sm = decltype(create_state_machine<Empty>("a"_state, "e"_ev, "a"_state + "e"_ev = hsm::internal));
         static_assert(std::is_same<map<item<no_event, km::uint_<0>>,                              //
                                        item<back::history_table, std::integer_sequence<size_t>>,  //
-                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0, back::transition<3, 1, 1, 0, 0>>>,
+                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0, back::transition<2, 1, 1, 0, 0>>>,
                                        item<hsm::elit<'e'>, km::uint_<1>>, item<root_state, back::state<0, 0, 1, 0, 0, 0, 0>>>,
                                    typename test_sm::raw_state_machine>::value,
                       "error");
@@ -58,7 +58,7 @@ int main()
                                        item<back::history_table, std::integer_sequence<size_t>>,                              //
                                        item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0>>,                                //
                                        item<hsm::elit<'e'>, km::uint_<1>>,                                                    //
-                                       item<root_state, back::state<0, 0, 1, 0, 0, 0, 0, back::transition<3, 1, 0, 0, 0>>>>,  //
+                                       item<root_state, back::state<0, 0, 1, 0, 0, 0, 0, back::transition<2, 1, 0, 0, 0>>>>,  //
                                    typename test_sm::raw_state_machine>::value,
                       "invalid");
     }
@@ -66,7 +66,7 @@ int main()
         using test_sm = decltype(create_state_machine<Empty>("a"_state, "e"_ev, "a"_state + "e"_ev = hsm::X));
         static_assert(std::is_same<map<item<no_event, km::uint_<0>>,                                                              //
                                        item<back::history_table, std::integer_sequence<size_t>>,                                  //
-                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0, back::transition<12, 1, 0, 0, 0>>>,  //
+                                       item<hsm::slit<'a'>, back::state<0, 1, 0, 0, 0, 0, 0, back::transition<11, 1, 0, 0, 0>>>,  //
                                        item<hsm::elit<'e'>, km::uint_<1>>,                                                        //
                                        item<root_state, back::state<0, 0, 1, 0, 0, 0, 0>>>,                                       //
                                    typename test_sm::raw_state_machine>::value,

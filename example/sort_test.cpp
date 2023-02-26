@@ -7,12 +7,11 @@ int main()
     namespace hb = hsm::back;
     using ti     = hb::transition<static_cast<uint32_t>(hb::transition_flags::initial), 0, 0, 0, 0>;
     using tc     = hb::transition<static_cast<uint32_t>(hb::transition_flags::completion), 0, 0, 0, 0>;
-    using th     = hb::transition<static_cast<uint32_t>(hb::transition_flags::history), 0, 0, 0, 0>;
     using tint   = hb::transition<static_cast<uint32_t>(hb::transition_flags::internal), 0, 0, 0, 0>;
     using tnorm  = hb::transition<static_cast<uint32_t>(hb::transition_flags::normal), 0, 0, 0, 0>;
     {
-        using input              = kvasir::mpl::list<tnorm, th, ti, tint, tc>;
-        using expected           = kvasir::mpl::list<ti, th, tc, tint, tnorm>;
+        using input              = kvasir::mpl::list<tnorm, ti, tint, tc>;
+        using expected           = kvasir::mpl::list<ti, tc, tint, tnorm>;
         using sorted_transitions = kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::stable_sort<hb::detail::sort_transition>>, input>;
         using num_normal_transition =
             kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::find_if<hb::detail::normal_transition, kvasir::mpl::size<>>>,
