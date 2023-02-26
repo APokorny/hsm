@@ -66,11 +66,10 @@ enum class state_flags : uint8_t
 enum class transition_flags : uint8_t
 {
     initial              = 0,
-    history              = 1,
-    completion           = 2,
-    internal             = 3,
-    normal               = 4,
-    transition_type_mask = 0x7,
+    completion           = 1,
+    internal             = 2,
+    normal               = 3,
+    transition_type_mask = 0x3,
 
     to_final           = 0x8,
     to_shallow_history = 0x10,

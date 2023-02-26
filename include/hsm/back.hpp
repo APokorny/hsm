@@ -6,10 +6,10 @@
 
 #ifndef HSM_BACK_HPP_INCLUDED
 #define HSM_BACK_HPP_INCLUDED
-#include "hsm/hsm_fwd.hpp"
-#include "hsm/front.hpp"
-#include "hsm/detail/hsm.hpp"
-#include "hsm/detail/back.hpp"
+#include <hsm/hsm_fwd.hpp>
+#include <hsm/front.hpp>
+#include <hsm/detail/hsm.hpp>
+#include <hsm/detail/back.hpp>
 
 #include <kvasir/mpl/algorithm/fold_left.hpp>
 #include <kvasir/mpl/algorithm/transform.hpp>
@@ -60,10 +60,6 @@ struct to_flag<hsm::completion> : kvasir::mpl::uint_<static_cast<uint8_t>(transi
 };
 template <>
 struct to_flag<hsm::start> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::initial)>
-{
-};
-template <>
-struct to_flag<hsm::empty_history> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::history)>
 {
 };
 template <>
