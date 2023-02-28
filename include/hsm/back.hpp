@@ -141,19 +141,20 @@ struct assembly_status
     static constexpr size_t enter_count      = EnterCount;
     static constexpr size_t exit_count       = ExitCount;
 };
-
+template<typename W>
+struct wrap { using type = W;};
 template <bool b>
 struct if_
 {
     template <typename T, typename E>
-    using f = E;
+    using f = typename E::type;
 };
 
 template <>
 struct if_<true>
 {
     template <typename T, typename E>
-    using f = T;
+    using f = typename T::type;
 };
 
 template <typename T>
@@ -219,9 +220,9 @@ struct assemble_state_machine
     {
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
-            assembly_status<sm, P, SC, EC, TC + 1, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1, EnterC,
-                            ExitC>>;
+            wrap<assembly_status<sm, P, SC, EC, TC + 1, EnterC, ExitC>>,
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1, EnterC,
+                            ExitC>>>;
     };
 
     template <typename SM, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename A>
@@ -241,18 +242,18 @@ struct assemble_state_machine
     {
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
-            assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P, SC + 1,
-                            EC, TC, EnterC, ExitC>>;
+            wrap<assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>>,
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P, SC + 1,
+                            EC, TC, EnterC, ExitC>>>;
     };
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K>
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC, EnterC, ExitC>, hsm::event<K>>
     {
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
-            assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, km::uint_<EC>>>, P, SC, EC + 1, TC, EnterC,
-                            ExitC>>;
+            wrap<assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>>,
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, km::uint_<EC>>>, P, SC, EC + 1, TC, EnterC,
+                            ExitC>>>;
     };
 
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K, typename... Elements>

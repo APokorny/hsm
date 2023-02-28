@@ -177,6 +177,11 @@ struct is_any_state
     struct f_impl<tiny_tuple::detail::item<N, hsm::back::state<F, Id, S, P, Entry, Exit, H, Ts...>>> : kvasir::mpl::bool_<true>
     {
     };
+    template <typename N, uint8_t F, size_t Id, size_t S, size_t P, typename Entry, typename Exit, size_t H, typename... Ts>
+    struct f_impl<tiny_tuple::detail::item<N, hsm::back::u_state<F, Id, S, P, Entry, Exit, H, Ts...>>> : kvasir::mpl::bool_<true>
+    {
+    };
+
     template <typename T>
     using f = f_impl<T>;
 };

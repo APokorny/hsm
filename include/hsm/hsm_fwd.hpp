@@ -48,6 +48,9 @@ constexpr size_t any_event_id = 0;
 template <uint32_t Flags, size_t Id, size_t Size, size_t ParentId, size_t Entry, size_t Exit, size_t History, typename... Transitions>
 struct state;
 
+template <uint8_t Flags, size_t Id, size_t Size, size_t ParentId, typename Entry, typename Exit, size_t History, typename... Transitions>
+struct u_state;
+
 template <uint32_t Flags, size_t E, size_t D, size_t C, size_t A>
 struct transition;
 

@@ -1,6 +1,15 @@
 
 # Changelog
 
+## Unreleased
+
+Feature: Unrolled: Second state machine backend 
+- This unrolls the state machine logic, transition search and more 
+
+Bugfix: Minor cleanup
+- Since 0.2.0 the plain history flag at transitions is no longer needed.
+
+
 ## Version 0.2.0
 In this version hsm comes with a few more bug fixes and faster state machine execution.
 So if you have no need for enter or exit actions the execution is now noticeable faster.
