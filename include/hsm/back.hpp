@@ -219,7 +219,7 @@ struct assemble_state_machine
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC, EnterC, ExitC>, hsm::transition<TT, S, E, C, A, D>>
     {
         using sm   = tiny_tuple::map<Items...>;
-        using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
+        using type = typename if_<std::is_same_v<no_event, E> || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
             wrap<assembly_status<sm, P, SC, EC, TC + 1, EnterC, ExitC>>,
             wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1, EnterC,
                             ExitC>>>;
