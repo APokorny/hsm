@@ -86,38 +86,13 @@ struct get_state_impl<C, hsm::final_state<T>>
 struct is_action
 {
     template <typename T>
-    struct f_impl : kvasir::mpl::bool_<false>
-    {
-    };
-    template <typename A>
-    struct f_impl<hsm::action_node<A>> : kvasir::mpl::bool_<true>
-    {
-    };
-    template <typename A>
-    struct f_impl<hsm::entry_action<A>> : kvasir::mpl::bool_<true>
-    {
-    };
-    template <typename A>
-    struct f_impl<hsm::exit_action<A>> : kvasir::mpl::bool_<true>
-    {
-    };
-    template <typename T>
-    using f = f_impl<T>;
+    using f = kvasir::mpl::bool_<!std::is_same_v<T,no_action>>;
 };
 
 struct is_condition
 {
     template <typename T>
-    struct f_impl : kvasir::mpl::bool_<false>
-    {
-    };
-    template <typename A>
-    struct f_impl<condition_node<A>> : kvasir::mpl::bool_<true>
-
-    {
-    };
-    template <typename T>
-    using f = f_impl<T>;
+    using f = kvasir::mpl::bool_<!std::is_same_v<T,no_cond>>;
 };
 
 struct function_type
@@ -126,17 +101,6 @@ struct function_type
     struct f_impl
     {
         using type = T;
-    };
-    template <typename A>
-    struct f_impl<hsm::condition_node<A>>
-    {
-        using type = A;
-    };
-
-    template <typename A>
-    struct f_impl<hsm::action_node<A>>
-    {
-        using type = A;
     };
     template <typename A>
     struct f_impl<hsm::entry_action<A>>
@@ -234,20 +198,49 @@ struct flatten_state_machine<C, hsm::state<K, Ts...>>
 };
 
 template <typename T>
-struct flatten_transition
+struct flatten_transition_actions
+{
+    using type = kvasir::mpl::list<>;
+};
+template <typename T>
+struct flatten_transition_actions<hsm::entry_action<T>>
 {
     using type = kvasir::mpl::list<T>;
 };
-template <typename K, typename... Ts>
-struct flatten_transition<hsm::state<K, Ts...>>
+
+template <typename T>
+struct flatten_transition_actions<hsm::exit_action<T>>
 {
-    using type = typename kvasir::mpl::join<kvasir::mpl::listify>::template f<typename detail::flatten_transition<Ts>::type...>;
+    using type = kvasir::mpl::list<T>;
+};
+
+template <typename K, typename... Ts>
+struct flatten_transition_actions<hsm::state<K, Ts...>>
+{
+    using type = typename kvasir::mpl::join<kvasir::mpl::listify>::template f<typename detail::flatten_transition_actions<Ts>::type...>;
 };
 template <typename TT, typename S, typename E, typename C, typename A, typename D>
-struct flatten_transition<hsm::transition<TT, S, E, C, A, D>>
+struct flatten_transition_actions<hsm::transition<TT, S, E, C, A, D>>
 {
-    using type = kvasir::mpl::list<S, E, C, A, D>;
+    using type = kvasir::mpl::list<A>;
 };
+
+template <typename T>
+struct flatten_transition_conditions
+{
+    using type = kvasir::mpl::list<>;
+};
+template <typename K, typename... Ts>
+struct flatten_transition_conditions<hsm::state<K, Ts...>>
+{
+    using type = typename kvasir::mpl::join<kvasir::mpl::listify>::template f<typename detail::flatten_transition_conditions<Ts>::type...>;
+};
+template <typename TT, typename S, typename E, typename C, typename A, typename D>
+struct flatten_transition_conditions<hsm::transition<TT, S, E, C, A, D>>
+{
+    using type = kvasir::mpl::list<C>;
+};
+
 
 }  // namespace detail
 }  // namespace back

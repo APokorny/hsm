@@ -90,20 +90,20 @@ struct dest_flag<deep_history_state<C>> : kvasir::mpl::uint_<static_cast<uint8_t
 };
 
 template <typename T>
-struct condition_flag : kvasir::mpl::uint_<0>
+struct condition_flag : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_condition)>
 {
 };
-template <typename T>
-struct condition_flag<condition_node<T>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_condition)>
+template <>
+struct condition_flag<no_cond> : kvasir::mpl::uint_<0>
 {
 };
 
 template <typename T>
-struct action_flag : kvasir::mpl::uint_<0>
+struct action_flag: kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
 {
 };
-template <typename T>
-struct action_flag<action_node<T>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
+template <>
+struct action_flag<no_action> : kvasir::mpl::uint_<0>
 {
 };
 
@@ -458,19 +458,26 @@ struct flatten_state_machine
 };
 
 template <typename C = kvasir::mpl::listify>
-struct flatten_transition
+struct flatten_transition_actions
 {
     template <typename... Ts>
-    using f = typename kvasir::mpl::join<C>::template f<typename detail::flatten_transition<Ts>::type...>;
+    using f = typename kvasir::mpl::join<C>::template f<typename detail::flatten_transition_actions<Ts>::type...>;
+};
+
+template <typename C = kvasir::mpl::listify>
+struct flatten_transition_conditions
+{
+    template <typename... Ts>
+    using f = typename kvasir::mpl::join<C>::template f<typename detail::flatten_transition_conditions<Ts>::type...>;
 };
 
 template <typename SM>
 using extract_actions =
-    km::call<hsm::back::flatten_transition<km::filter<back::detail::is_action, km::transform<back::detail::function_type>>>, SM>;
+    km::call<hsm::back::flatten_transition_actions<km::filter<back::detail::is_action, km::transform<back::detail::function_type>>>, SM>;
 
 template <typename SM>
 using extract_conditions =
-    km::call<flatten_transition<km::filter<back::detail::is_condition, km::transform<back::detail::function_type>>>, SM>;
+    km::call<flatten_transition_conditions<km::filter<back::detail::is_condition, km::transform<back::detail::function_type>>>, SM>;
 
 template <typename SM>
 using extract_backend_states = km::call<  //

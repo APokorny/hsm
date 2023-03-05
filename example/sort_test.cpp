@@ -51,7 +51,7 @@ int main()
 
         using se      = hsm::detail::state_entry<unsigned char, unsigned char, unsigned char, unsigned char>;
         se const* sts = hsm::back::get_state_table<se>(kvasir::mpl::list<type>{});
-        if (sts[0].transition_count == 2 && sts[0].special_transition_count == 1) { std::cout << "success\n"; }
+        if (sts[0].transition_count == 2 && sts[0].special_transition_count == 2) { std::cout << "success\n"; }
         else
         {
             std::cout << "failed \n";

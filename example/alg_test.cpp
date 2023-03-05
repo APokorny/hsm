@@ -142,15 +142,13 @@ TEST_CASE("Shallow History restore on initial", "[algorithm][history][shallow re
     auto sm = sm_with_shallow_history();
     sm.start(c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("no_history"_state));
-    sm.process_event("ev"_ev, c); // go to remember
+    sm.process_event("ev"_ev, c);  // go to remember
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("b"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
-
 }
-
 
 constexpr auto sm_with_shallow_history_of()
 {
@@ -162,20 +160,19 @@ constexpr auto sm_with_shallow_history_of()
             hsm::history = "no_history"_state,  //
             "to_remember"_state,                //
             "no_history"_state("ev"_ev = "to_remember"_state),
-            "e1"_ev = "b"_state         //
-            ),                          //
+            "e1"_ev = "b"_state                     //
+            ),                                      //
         "b"_state("e1"_ev = history_of("a"_state))  //
     );
 }
-
 
 TEST_CASE("Shallow History restore on history_of", "[algorithm][history][shallow restore 2]")
 {
     f    c;
     auto sm = sm_with_shallow_history_of();
-    sm.start(c);// go to no history 
+    sm.start(c);  // go to no history
     REQUIRE(sm.current_state_id() == sm.get_state_id("no_history"_state));
-    sm.process_event("ev"_ev, c); // go to remember
+    sm.process_event("ev"_ev, c);  // go to remember
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("b"_state));

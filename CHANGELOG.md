@@ -3,10 +3,14 @@
 
 ## Unreleased
 
-Feature: Unrolled: Second state machine backend 
+**Feature**: Cleaner Frontend: Less Specializations and wrappers
+- Removal of partial specialisation for transitions, replaced with concepts
+- Removal of some wrappers like `action_node`
+  
+**Feature**: Unrolled: Second state machine backend 
 - This unrolls the state machine logic, transition search and more 
 
-Bugfix: Minor cleanup
+**Bugfix**: Minor cleanup
 - Since 0.2.0 the plain history flag at transitions is no longer needed.
 
 

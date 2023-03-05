@@ -1,8 +1,9 @@
 /* ==========================================================================
- Copyright (c) 2019 Andreas Pokorny
+ Copyright (c) 2019-2023 Andreas Pokorny
  Distributed under the Boost Software License, Version 1.0. (See accompanying
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
+
 
 #ifndef HSM_FRONT_HPP_INCLUDED
 #define HSM_FRONT_HPP_INCLUDED
@@ -52,51 +53,26 @@ struct no_action
     }
 };
 
-template <typename Condition>
-struct condition_node
-{
-    Condition condition;
-    condition_node(Condition&& c) : condition(std::forward<Condition>(c)) {}
-    template <typename... Ts>
-    constexpr bool operator()(Ts&&... ts) const noexcept
-    {
-        return condition(std::forward<Ts>(ts)...);
-    }
-};
-
-template <typename Action>
-struct action_node
-{
-    Action action;
-    action_node(Action&& a) : action(std::forward<Action>(a)) {}
-
-    template <typename... Ts>
-    constexpr void operator()(Ts&&... ts) const noexcept
-    {
-        action(std::forward<Ts>(ts)...);
-    }
-};
-
 struct no_dest
 {
 };
 template <typename A>
 struct entry_action
 {
-    A action;
+    using action = A;
 };
 struct enter_node
 {
     template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
+    constexpr auto operator/(A&&) const noexcept
     {
-        return entry_action<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)};
+        return entry_action<std::decay_t<A>>{};
     }
 
     template <typename A>
-    constexpr auto operator=(A&& a) const noexcept
+    constexpr auto operator=(A&&) const noexcept
     {
-        return entry_action<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)};
+        return entry_action<std::decay_t<A>>{};
     }
 };
 
@@ -105,20 +81,20 @@ constexpr enter_node enter;
 template <typename A>
 struct exit_action
 {
-    A action;
+    using action = A;
 };
 struct exit_node
 {
     template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
+    constexpr auto operator/(A&&) const noexcept
     {
-        return exit_action<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)};
+        return exit_action<std::decay_t<A>>{};
     }
 
     template <typename A>
-    constexpr auto operator=(A&& a) const noexcept
+    constexpr auto operator=(A&&) const noexcept
     {
-        return exit_action<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)};
+        return exit_action<std::decay_t<A>>{};
     }
 };
 
@@ -130,128 +106,30 @@ struct transition
     using transition_type = TT;
     using source_type     = S;
     using dest_type       = D;
-    mutable C cond;
-    mutable A action;
-    transition(C&& c, A&& a) : cond{std::forward<C>(c)}, action{std::forward<A>(a)} {}
-};
-
-template <typename TT, typename S, typename E, typename C, typename D>
-struct transition<TT, S, E, C, no_action, D>
-{
-    using transition_type = TT;
-    using source_type     = S;
-    using dest_type       = D;
-    mutable C         cond;
-    mutable no_action action;
-    transition(C&& c) : cond{std::forward<C>(c)} {}
-    transition(C&& c, no_action&&) : cond{std::forward<C>(c)} {}
-};
-
-template <typename TT, typename S, typename E, typename D>
-struct transition<TT, S, E, no_cond, no_action, D>
-{
-    using transition_type = TT;
-    using source_type     = S;
-    using dest_type       = D;
-    mutable no_cond   cond;
-    mutable no_action action;
-};
-
-template <typename TT, typename S, typename E>
-struct transition<TT, S, E, no_cond, no_action, no_dest>
-{
-    using transition_type = TT;
-    using source_type     = S;
-    using dest_type       = no_dest;
-    mutable no_cond   cond;
-    mutable no_action action;
-    template <typename C>
-    constexpr auto operator[](C&& c) const noexcept
+    using cond            = C;
+    using action          = A;
+    template <typename Condition>
+        requires std::is_same_v<C, no_cond>
+    constexpr auto operator[](Condition&&) const noexcept
     {
-        return transition<TT, S, E, condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
+        return transition<TT, S, E, std::decay_t<Condition>, A, D>{};
     }
-    template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
+    template <typename Action>
+        requires std::is_same_v<A, no_action>
+    constexpr auto operator/(Action&& a) const noexcept
     {
-        return transition<TT, S, E, no_cond, action_node<std::decay_t<A>>, no_dest>{
-            no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
+        return transition<TT, S, E, C, std::decay_t<Action>, D>{};
     }
-    template <typename D>
-    constexpr auto operator=(D const&) const noexcept
+    template <typename Dest>
+        requires std::is_same_v<D, no_dest>
+    constexpr auto operator=(Dest&&) const noexcept
     {
-        return transition<TT, S, E, no_cond, no_action, D>{};
+        return transition<TT, S, E, C, A, std::decay_t<Dest>>{};
     }
     constexpr auto operator=(internal_transition const&) const noexcept
+        requires std::is_same_v<D, no_dest>
     {
-        return transition<internal_transition, S, E, no_cond, no_action, S>{};
-    }
-};
-
-template <typename TT, typename S, typename E, typename C>
-struct transition<TT, S, E, C, no_action, no_dest>
-{
-    using transition_type = TT;
-    using source_type     = S;
-    using dest_type       = no_dest;
-    C mutable cond;
-    no_action mutable action;
-    transition(C&& c) : cond{std::forward<C>(c)} {}
-    transition(C&& c, no_action&&) : cond{std::forward<C>(c)} {}
-    template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
-    {
-        return transition<TT, S, E, C, action_node<std::decay_t<A>>, no_dest>{
-            std::move(cond), action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
-    }
-    template <typename D>
-    constexpr auto operator=(D const&) const noexcept
-    {
-        return transition<TT, S, E, C, no_action, D>{std::move(cond)};
-    }
-    constexpr auto operator=(internal_transition const&) const noexcept
-    {
-        return transition<internal_transition, S, E, C, no_action, S>{std::move(cond)};
-    }
-};
-
-template <typename TT, typename S, typename E, typename C, typename A>
-struct transition<TT, S, E, C, A, no_dest>
-{
-    using transition_type = TT;
-    using source_type     = S;
-    using dest_type       = no_dest;
-    C mutable cond;
-    A mutable action;
-    transition(C&& c, A&& a) : cond{std::forward<C>(c)}, action{std::forward<A>(a)} {}
-    template <typename D>
-    constexpr auto operator=(D const&) const noexcept
-    {
-        return transition<TT, S, E, C, A, D>{std::move(cond), std::move(action)};
-    }
-    constexpr auto operator=(internal_transition const&) const noexcept
-    {
-        return transition<internal_transition, S, E, C, A, S>{std::move(cond), std::move(action)};
-    }
-};
-
-template <typename TT, typename S, typename E, typename A>
-struct transition<TT, S, E, no_cond, A, no_dest>
-{
-    using transition_type = TT;
-    using source_type     = S;
-    using dest_type       = no_dest;
-    mutable no_cond cond;
-    mutable A       action;
-    transition(no_cond&&, A&& a) : action{std::forward<A>(a)} {}
-    template <typename D>
-    constexpr auto operator=(D const&) const noexcept
-    {
-        return transition<TT, S, E, no_cond, A, D>{no_cond{}, std::move(action)};
-    }
-    constexpr auto operator=(internal_transition const&) const noexcept
-    {
-        return transition<internal_transition, S, E, no_cond, A, S>{no_cond{}, std::move(action)};
+        return transition<internal_transition, S, E, C, A, S>{};
     }
 };
 
@@ -292,9 +170,9 @@ struct state_ref
     constexpr auto operator+(event<T> const&) const noexcept { return n_trans<this_type, event<T>, no_cond, no_action, no_dest>{}; }
 
     template <typename TT, typename E, typename C, typename A, typename D>
-    constexpr auto operator+(transition<TT, current_state, E, C, A, D>&& t) const noexcept
+    constexpr auto operator+(transition<TT, current_state, E, C, A, D>&&) const noexcept
     {
-        return transition<TT, this_type, E, C, A, D>{std::move(t.cond), std::move(t.action)};
+        return transition<TT, this_type, E, C, A, D>{};
     }
     template <typename Dest>
     constexpr auto operator=(Dest const&) const noexcept
@@ -302,16 +180,14 @@ struct state_ref
         return d_trans<this_type, no_cond, no_action, Dest>{};
     }
     template <typename C>
-    constexpr auto operator[](C&& c) const noexcept
+    constexpr auto operator[](C&&) const noexcept
     {
-        return d_trans<this_type, condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
+        return d_trans<this_type, std::decay_t<C>, no_action, no_dest>{};
     }
     template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
+    constexpr auto operator/(A&&) const noexcept
     {
-        return d_trans<this_type, no_cond, action_node<std::decay_t<A>>, no_dest>{no_cond{},
-                                                                                  action_node<A>{std::forward<std::decay_t<A>>(a)}};
+        return d_trans<this_type, no_cond, std::decay_t<A>, no_dest>{};
     }
 };
 
@@ -323,16 +199,14 @@ struct initial_state
         return s_trans<no_cond, no_action, Dest>{};
     }
     template <typename C>
-    constexpr auto operator[](C&& c) const noexcept
+    constexpr auto operator[](C&&) const noexcept
     {
-        return s_trans<condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}};
+        return s_trans<std::decay_t<C>, no_action, no_dest>{};
     }
     template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
+    constexpr auto operator/(A&&) const noexcept
     {
-        return s_trans<no_cond, action_node<std::decay_t<A>>, no_dest>{no_cond{},
-                                                                       action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
+        return s_trans<no_cond, std::decay_t<A>, no_dest>{};
     }
 };
 constexpr initial_state initial;
@@ -372,29 +246,27 @@ struct event
 {
     using this_type = event;
 #ifdef HSM_USE_PROPER_LITERALS
-    //event(str_lit Key) {};
+    // event(str_lit Key) {};
 #endif
     template <typename D>
     constexpr auto operator=(D const&) const noexcept
     {
-        return n_trans<current_state, this_type, no_cond, no_action, D>{no_cond{}, no_action{}};
+        return n_trans<current_state, this_type, no_cond, no_action, D>{};
     }
     constexpr auto operator=(internal_transition const&) const noexcept
     {
-        return i_trans<current_state, this_type, no_cond, no_action, current_state>{no_cond{}, no_action{}};
+        return i_trans<current_state, this_type, no_cond, no_action, current_state>{};
     }
 
     template <typename C>
-    constexpr auto operator[](C&& c) const noexcept
+    constexpr auto operator[](C&&) const noexcept
     {
-        return n_trans<current_state, this_type, condition_node<std::decay_t<C>>, no_action, no_dest>{
-            condition_node<std::decay_t<C>>{std::forward<std::decay_t<C>>(c)}, no_action{}};
+        return n_trans<current_state, this_type, std::decay_t<C>, no_action, no_dest>{};
     }
     template <typename A>
     constexpr auto operator/(A&& a) const noexcept
     {
-        return n_trans<current_state, this_type, no_cond, action_node<std::decay_t<A>>, no_dest>{
-            no_cond{}, action_node<std::decay_t<A>>{std::forward<std::decay_t<A>>(a)}};
+        return n_trans<current_state, this_type, no_cond, std::decay_t<A>, no_dest>{};
     }
 };
 

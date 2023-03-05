@@ -37,10 +37,6 @@ template <typename A>
 struct exit_action;
 template <typename A>
 struct entry_action;
-template <typename C>
-struct condition_node;
-template <typename A>
-struct action_node;
 
 namespace back
 {
