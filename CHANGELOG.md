@@ -1,7 +1,9 @@
 
 # Changelog
 
-## Unreleased
+## Version 0.3.0
+This version sees the addition of a second backend whih unrolls the state machine
+in place, not needing any tables besides the current history status.
 
 **Feature**: Cleaner Frontend: Less Specializations and wrappers
 - Removal of partial specialisation for transitions, replaced with concepts
