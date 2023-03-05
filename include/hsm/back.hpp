@@ -90,20 +90,20 @@ struct dest_flag<deep_history_state<C>> : kvasir::mpl::uint_<static_cast<uint8_t
 };
 
 template <typename T>
-struct condition_flag : kvasir::mpl::uint_<0>
+struct condition_flag : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_condition)>
 {
 };
-template <typename T>
-struct condition_flag<condition_node<T>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_condition)>
+template <>
+struct condition_flag<no_cond> : kvasir::mpl::uint_<0>
 {
 };
 
 template <typename T>
-struct action_flag : kvasir::mpl::uint_<0>
+struct action_flag: kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
 {
 };
-template <typename T>
-struct action_flag<action_node<T>> : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
+template <>
+struct action_flag<no_action> : kvasir::mpl::uint_<0>
 {
 };
 
@@ -141,19 +141,20 @@ struct assembly_status
     static constexpr size_t enter_count      = EnterCount;
     static constexpr size_t exit_count       = ExitCount;
 };
-
+template<typename W>
+struct wrap { using type = W;};
 template <bool b>
 struct if_
 {
     template <typename T, typename E>
-    using f = E;
+    using f = typename E::type;
 };
 
 template <>
 struct if_<true>
 {
     template <typename T, typename E>
-    using f = T;
+    using f = typename T::type;
 };
 
 template <typename T>
@@ -219,9 +220,9 @@ struct assemble_state_machine
     {
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
-            assembly_status<sm, P, SC, EC, TC + 1, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1, EnterC,
-                            ExitC>>;
+            wrap<assembly_status<sm, P, SC, EC, TC + 1, EnterC, ExitC>>,
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1, EnterC,
+                            ExitC>>>;
     };
 
     template <typename SM, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename A>
@@ -241,18 +242,18 @@ struct assemble_state_machine
     {
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
-            assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P, SC + 1,
-                            EC, TC, EnterC, ExitC>>;
+            wrap<assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>>,
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P, SC + 1,
+                            EC, TC, EnterC, ExitC>>>;
     };
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K>
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC, EnterC, ExitC>, hsm::event<K>>
     {
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
-            assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>,
-            assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, km::uint_<EC>>>, P, SC, EC + 1, TC, EnterC,
-                            ExitC>>;
+            wrap<assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>>,
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, km::uint_<EC>>>, P, SC, EC + 1, TC, EnterC,
+                            ExitC>>>;
     };
 
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K, typename... Elements>
@@ -457,19 +458,26 @@ struct flatten_state_machine
 };
 
 template <typename C = kvasir::mpl::listify>
-struct flatten_transition
+struct flatten_transition_actions
 {
     template <typename... Ts>
-    using f = typename kvasir::mpl::join<C>::template f<typename detail::flatten_transition<Ts>::type...>;
+    using f = typename kvasir::mpl::join<C>::template f<typename detail::flatten_transition_actions<Ts>::type...>;
+};
+
+template <typename C = kvasir::mpl::listify>
+struct flatten_transition_conditions
+{
+    template <typename... Ts>
+    using f = typename kvasir::mpl::join<C>::template f<typename detail::flatten_transition_conditions<Ts>::type...>;
 };
 
 template <typename SM>
 using extract_actions =
-    km::call<hsm::back::flatten_transition<km::filter<back::detail::is_action, km::transform<back::detail::function_type>>>, SM>;
+    km::call<hsm::back::flatten_transition_actions<km::filter<back::detail::is_action, km::transform<back::detail::function_type>>>, SM>;
 
 template <typename SM>
 using extract_conditions =
-    km::call<flatten_transition<km::filter<back::detail::is_condition, km::transform<back::detail::function_type>>>, SM>;
+    km::call<flatten_transition_conditions<km::filter<back::detail::is_condition, km::transform<back::detail::function_type>>>, SM>;
 
 template <typename SM>
 using extract_backend_states = km::call<  //

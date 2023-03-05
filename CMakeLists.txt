@@ -17,7 +17,7 @@ option(hsm_BUILD_TESTS "Build hsm examples and tests" ${hsm_STANDALONE})
 option(hsm_BUILD_BENCHMARKS "Build hsm benchmarks" ${hsm_STANDALONE})
 add_library(hsm INTERFACE)
 add_library(hsm::hsm ALIAS hsm)
-target_compile_features(hsm INTERFACE cxx_std_17)
+target_compile_features(hsm INTERFACE cxx_std_20)
 target_link_libraries(hsm INTERFACE tiny_tuple)
 target_include_directories(hsm INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
