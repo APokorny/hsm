@@ -1,6 +1,17 @@
 
 # Changelog
 
+## Version 0.3.1
+Minor bugfix release
+
+**Feature**: Expanded micro benchmark
+- To show the difference in performance, each state machine is now executed in the tabled and unrolled version
+- Depending on the statemachine the performance increased by a factor of 500 or 40..
+
+**Bugfix**: Fix templated process_event
+- Fixes an error in the key look-up the event type.
+
+
 ## Version 0.3.0
 This version sees the addition of a second backend whih unrolls the state machine
 in place, not needing any tables besides the current history status.

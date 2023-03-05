@@ -118,7 +118,7 @@ struct u_assemble_state_machine
     struct f_impl<u_assembly_status<tiny_tuple::map<Items...>, P, SC, EC>, hsm::transition<TT, S, E, C, A, D>>
     {
         using sm   = tiny_tuple::map<Items...>;
-        using type = typename if_<std::is_same<no_event, E>::value || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
+        using type = typename if_<std::is_same_v<no_event, E> || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
             wrap<u_assembly_status<sm, P, SC, EC>>,
             wrap<u_assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1>>>;
     };
@@ -681,10 +681,10 @@ struct unrolled_sm
     }
 
     template <typename EventId>
-        requires requires { back::get_event_id<sm, EventId>::value; } bool
+        requires requires { back::get_event_id<sm, std::decay_t<EventId>>::value; } bool
     process_event(EventId&& ev, Context& con)
     {
-        return process_event(back::get_event_id<sm, EventId>::value, con);
+        return process_event(back::get_event_id<sm, std::decay_t<EventId>>::value, con);
     }
 
     inline void start(Context& con) noexcept

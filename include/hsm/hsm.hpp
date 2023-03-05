@@ -230,11 +230,11 @@ struct state_machine
         return true;
     }
 
-    template <typename Key>
-    bool process_event(Key const&, Context& con)
+    template <typename EventId>
+    requires requires { back::get_event_id<Hsm, std::decay_t<EventId>>::value; }
+    bool process_event(EventId&&, Context& con)
     {
-        using event_type = typename tiny_tuple::value_type<back::unpack<Key>, Hsm>::type;
-        return process_event(static_cast<event_id>(event_type::value::value), con);
+        return process_event(back::get_event_id<Hsm, std::decay_t<EventId>>::value, con);
     }
     constexpr state_id current_state_id() const { return current_state; }
     template <typename Key>
