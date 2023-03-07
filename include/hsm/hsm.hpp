@@ -271,13 +271,13 @@ constexpr auto create_state_machine(Ts&&...)
     using action_id_type    = get_id_type<sm_res::action_count>;
     using condition_id_type = get_id_type<sm_res::condition_count>;
     using event_id_type     = get_id_type<sm_stats::event_count>;
-    using history           = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
-    using history_id_type   = get_id_type<history::size()>;
+    using history_table           = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
+    using history_id_type   = get_id_type<history_table::size()>;
     using tt_entry          = detail::tt_entry<event_id_type, state_id_type, condition_id_type, action_id_type>;
     using traits            = back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count,
                                    action_id_type, sm_res::condition_count, condition_id_type, sm_stats::transition_count,
                                    get_id_type<sm_stats::transition_count * sizeof(tt_entry)>, sm_stats::enter_count, sm_stats::exit_count,
-                                   history::size(), history_id_type>;
+                                   history_table::size(), history_id_type>;
     using sm_type           = state_machine<final_sm, Context, traits>;
     using state_entry       = typename sm_type::state_entry;
     using states            = back::extract_backend_states<final_sm>;
@@ -287,7 +287,7 @@ constexpr auto create_state_machine(Ts&&...)
 
     return sm_type(back::get_transition_table<tt_entry>(transitions{}), back::get_state_table<state_entry>(states{}),
                    back::get_conditions<Context>(conditions{}), back::get_actions<Context>(actions{}),
-                   back::get_history<state_id_type>(history{}));
+                   back::get_history<state_id_type>(history_table{}));
 }
 
 template <typename SM, typename E>
