@@ -1,6 +1,11 @@
 
 # Changelog
 
+## Version 0.3.2
+Warninng related release
+
+**Bugfix**: Additional warnings fixed
+
 ## Version 0.3.1
 Minor bugfix release
 
