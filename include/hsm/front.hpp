@@ -116,7 +116,7 @@ struct transition
     }
     template <typename Action>
         requires std::is_same_v<A, no_action>
-    constexpr auto operator/(Action&& a) const noexcept
+    constexpr auto operator/(Action&&) const noexcept
     {
         return transition<TT, S, E, C, std::decay_t<Action>, D>{};
     }
@@ -264,7 +264,7 @@ struct event
         return n_trans<current_state, this_type, std::decay_t<C>, no_action, no_dest>{};
     }
     template <typename A>
-    constexpr auto operator/(A&& a) const noexcept
+    constexpr auto operator/(A&&) const noexcept
     {
         return n_trans<current_state, this_type, no_cond, std::decay_t<A>, no_dest>{};
     }
