@@ -353,13 +353,18 @@ struct internal_and_normal
     using f = f_impl<T>;
 };
 
+struct sort_transitions
+{
+    template <typename Param>
+    using f = typename kvasir::mpl::call<kvasir::mpl::unpack<km::stable_sort<back::detail::sort_transition>>, Param>;
+};
 struct event_transitions
 {
     template <typename Param>
     using f = typename kvasir::mpl::call<kvasir::mpl::unpack<kvasir::mpl::filter<internal_and_normal>>, Param>;
 };
 
-template <size_t StateId>
+template <size_t StateId, typename C = kvasir::mpl::listify>
 struct parent_transitions
 {
     template <typename R>
@@ -370,7 +375,7 @@ struct parent_transitions
     template <uint8_t F, size_t Id, size_t S, size_t P, typename E, typename Ex, size_t H, typename... Ts>
     struct f_impl<back::u_state<F, Id, S, P, E, Ex, H, Ts...>>
     {
-        using type = if_<(Id <= StateId) && (StateId <= Id + S)>::template f<wrap<kvasir::mpl::list<Ts...>>, wrap<kvasir::mpl::list<>>>;
+        using type = if_<(Id <= StateId) && (StateId <= Id + S)>::template f<wrap<kvasir::mpl::call<C, Ts...>>, wrap<kvasir::mpl::call<C>>>;
     };
 
     template <typename Param>
@@ -388,33 +393,22 @@ template <typename States, size_t EventId, size_t StateId>
 using grab_event_transitions_sorted = kvasir::mpl::call<  //
     km::unpack<                                           //
         km::transform<                                    //
-            parent_transitions<StateId>,                  //
-            km::transform<                                //
-                event_transitions,                        //
-                km::reverse<                              //
-                    km::join<                             //
-                        km::filter<                       //
-                            only_event<EventId>>          //
-                        >                                 //
-                    >                                     //
-                >                                         //
-            >                                             //
-        >,                                                //
+            parent_transitions<
+                StateId, km::filter<internal_and_normal, km::filter<only_event<EventId>, km::stable_sort<back::detail::sort_transition>>>>,
+            km::reverse<km::join<>>  //
+            >                        //
+        >,                           //
     States>;
 
 template <typename States, size_t StateId>
-using grab_transitions_sorted =
-    kvasir::mpl::call<km::unpack<km::transform<parent_transitions<StateId>, km::transform<event_transitions, km::reverse<km::join<>>>>>,
-                      States>;
-
-template <typename StateList>
-using extract_and_sort_transitions = km::call<                    //
-    km::unpack<                                                   //
-        km::transform<                                            //
-            back::detail::unpack_transitions<                     //
-                km::stable_sort<back::detail::sort_transition>>,  //
-            km::join<>>>,                                         //
-    StateList>;
+using grab_transitions_sorted = kvasir::mpl::call<  //
+    km::unpack<                                     //
+        km::transform<                              //
+            parent_transitions<StateId, km::filter<internal_and_normal, km::stable_sort<back::detail::sort_transition>>>,
+            km::reverse<km::join<>>  //
+            >                        //
+        >,                           //
+    States>;
 
 template <size_t StateCount, typename StateId, size_t EventCount, typename EventId, size_t HistoryCount, typename HistoryId,
           size_t EnterCount, size_t ExitCount>
@@ -560,8 +554,7 @@ struct unrolled_sm
         namespace km    = kvasir::mpl;
         using to_parent = back::calc_static_parent<states, Source::id, Dest::id>;
         if constexpr (Traits::exit_count > 0)
-            [this]<typename... Ts>(Context& con, km::list<Ts...>)
-            { (Ts::exit_state(con),...); }(con, km::eager::drop<to_parent, 1>());
+            [this]<typename... Ts>(Context& con, km::list<Ts...>) { (Ts::exit_state(con), ...); }(con, km::eager::drop<to_parent, 1>());
         if constexpr (Traits::history_count > 0)
         {
             using history_update = km::call<                                     //
@@ -570,15 +563,14 @@ struct unrolled_sm
                         back::history_sequence<km::list<>, back::no_state>,      //
                         km::fold_left<back::apply_history_state<Source::id>>>>,  //
                 to_parent>;
-            [this]<typename... Ts>(kvasir::mpl::list<Ts...>)
-            { ((history[Ts::first] = Ts::second),...); }(typename history_update::type());
+            [this]<typename... Ts>(kvasir::mpl::list<Ts...>) { ((history[Ts::first] = Ts::second), ...); }(typename history_update::type());
         }
         t.exec(con);
         if constexpr (Traits::enter_count > 0)
         {
             using parent = km::call<km::unpack<km::front<km::identity>>, to_parent>;
             [this]<typename... Ts>(Context& con, km::list<Ts...>)
-            { (Ts::enter_state(con),...); }(con, back::get_parents<states, parent::id, Dest::id>());
+            { (Ts::enter_state(con), ...); }(con, back::get_parents<states, parent::id, Dest::id>());
         }
         return true;
     }
@@ -609,6 +601,21 @@ struct unrolled_sm
 
         if constexpr (Trans::to_final()) result = dispatch_result::to_final;
         return true;
+    }
+
+    template <typename EventId, typename... States>
+    inline dispatch_result dispatch(Context& con, EventId, kvasir::mpl::list<States...>)
+    {
+        dispatch_result ret = no_consume;
+        namespace km        = kvasir::mpl;
+        const auto s        = current_state;
+        bool       val      = ((s == States::id &&
+                     [this]<typename Source, typename... Ts>(Context& con, dispatch_result& result, Source state, km::list<Ts...>) {
+                         return ((Ts::eval(con) && execute_transition(con, result, get_state<Ts::dest>{}, Ts{}, state)) || ...);
+                     }(con, ret, States{},
+                       back::grab_event_transitions_sorted<states, back::get_event_id<sm, std::decay_t<EventId>>::value, States::id>{})) ||
+                    ...);
+        return ret;
     }
 
     template <typename... States>
@@ -684,7 +691,20 @@ struct unrolled_sm
         requires requires { back::get_event_id<sm, std::decay_t<EventId>>::value; } bool
     process_event(EventId&& ev, Context& con)
     {
-        return process_event(back::get_event_id<sm, std::decay_t<EventId>>::value, con);
+        auto result = dispatch(con, ev, states{});
+        if (result == no_consume) return false;
+        if (result == internal) return true;
+        do {
+            if (result == normal)
+                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
+                    auto find_state = ((c == Ts::id && (execute_initial_or_completion(con, result, Ts{}))) || ...);
+                }(con, result, current_state, states{});
+            else if (result == to_final)
+                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
+                    auto find_state = ((c == Ts::id && (execute_completion(con, result, Ts{}))) || ...);
+                }(con, result, current_state, states{});
+        } while (result != no_consume);
+        return true;
     }
 
     inline void start(Context& con) noexcept
