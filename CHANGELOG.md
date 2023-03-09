@@ -1,6 +1,12 @@
 
 # Changelog
 
+## Version 0.3.3
+Bugfix release for hsm::any transitions in unrolled state machine
+
+**Bugfix**: Sort transitions in unrolled statemachine
+
+
 ## Version 0.3.2
 Warninng related release
 
