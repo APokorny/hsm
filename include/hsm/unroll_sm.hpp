@@ -4,8 +4,7 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_FLATTEN_SM_HPP_INCLUDED
-#define HSM_FLATTEN_SM_HPP_INCLUDED
+#pragma once
 
 #include <array>
 #include <kvasir/mpl/sequence/at.hpp>
@@ -375,7 +374,8 @@ struct parent_transitions
     template <uint8_t F, size_t Id, size_t S, size_t P, typename E, typename Ex, size_t H, typename... Ts>
     struct f_impl<back::u_state<F, Id, S, P, E, Ex, H, Ts...>>
     {
-        using type = if_<(Id <= StateId) && (StateId <= Id + S)>::template f<wrap<kvasir::mpl::call<C, Ts...>>, wrap<kvasir::mpl::call<C>>>;
+        using type =
+            typename if_<(Id <= StateId) && (StateId <= Id + S)>::template f<wrap<kvasir::mpl::call<C, Ts...>>, wrap<kvasir::mpl::call<C>>>;
     };
 
     template <typename Param>
@@ -428,7 +428,7 @@ struct calc_static_parent_impl;
 template <typename States, typename... Ts, typename Source, typename Dest>
 struct calc_static_parent_impl<States, km::list<Ts...>, Source, Dest>
 {
-    using type = if_<(Source::id <= Dest::id) && (Dest::id <= Source::id + Source::size)>::template f<
+    using type = typename if_<(Source::id <= Dest::id) && (Dest::id <= Source::id + Source::size)>::template f<
         wrap<km::list<Source, Ts...>>,
         calc_static_parent_impl<States, km::list<Source, Ts...>, km::eager::at<States, Source::parent>, Dest>>;
 };
@@ -483,20 +483,20 @@ struct apply_history_state
     struct f_impl<history_sequence<km::list<Ts...>, shallow_history_state<H>>, R>
     {
         using setting     = history_setting<H, R::id>;
-        using next_status = if_<(static_cast<uint8_t>(R::flags & state_flags::has_history)) ==
-                                0>::template f<wrap<no_state>, wrap<shallow_history_state<R::history>>>;
-        using type =
-            if_<(static_cast<uint8_t>(R::flags & state_flags::has_deep_history) !=
-                 0)>::template f<wrap<history_sequence<km::list<Ts..., setting, history_setting<R::history, CurrentStateId>>, next_status>>,
-                                 wrap<history_sequence<km::list<Ts..., setting>, next_status>>>;
+        using next_status = typename if_<(static_cast<uint8_t>(R::flags & state_flags::has_history)) ==
+                                         0>::template f<wrap<no_state>, wrap<shallow_history_state<R::history>>>;
+        using type        = typename if_<(static_cast<uint8_t>(R::flags & state_flags::has_deep_history) != 0)>::template f<
+            wrap<history_sequence<km::list<Ts..., setting, history_setting<R::history, CurrentStateId>>, next_status>>,
+            wrap<history_sequence<km::list<Ts..., setting>, next_status>>>;
     };
 
     template <typename... Ts, typename R>
     struct f_impl<history_sequence<km::list<Ts...>, no_state>, R>
     {
-        using next_status = if_<(static_cast<uint8_t>(R::flags & state_flags::has_history)) ==
-                                0>::template f<wrap<no_state>, wrap<shallow_history_state<R::history>>>;
-        using type        = if_<(static_cast<uint8_t>(R::flags & state_flags::has_deep_history)) !=
+        using next_status = typename if_<(static_cast<uint8_t>(R::flags & state_flags::has_history)) ==
+                                         0>::template f<wrap<no_state>, wrap<shallow_history_state<R::history>>>;
+        using type =
+            typename if_<(static_cast<uint8_t>(R::flags & state_flags::has_deep_history)) !=
                          0>::template f<wrap<history_sequence<km::list<Ts..., history_setting<R::history, CurrentStateId>>, next_status>>,
                                         wrap<history_sequence<km::list<Ts...>, next_status>>>;
     };
@@ -522,9 +522,9 @@ struct unrolled_sm
 
     std::array<state_id, Traits::history_count> history;
 
-    enum dispatch_result
+    enum class dispatch_result
     {
-        internal,
+        interior,
         normal,
         to_final,
         no_consume
@@ -554,7 +554,7 @@ struct unrolled_sm
         namespace km    = kvasir::mpl;
         using to_parent = back::calc_static_parent<states, Source::id, Dest::id>;
         if constexpr (Traits::exit_count > 0)
-            [this]<typename... Ts>(Context& con, km::list<Ts...>) { (Ts::exit_state(con), ...); }(con, km::eager::drop<to_parent, 1>());
+            [this]<typename... Ts>(Context& c, km::list<Ts...>) { (Ts::exit_state(c), ...); }(con, km::eager::drop<to_parent, 1>());
         if constexpr (Traits::history_count > 0)
         {
             using history_update = km::call<                                     //
@@ -569,8 +569,8 @@ struct unrolled_sm
         if constexpr (Traits::enter_count > 0)
         {
             using parent = km::call<km::unpack<km::front<km::identity>>, to_parent>;
-            [this]<typename... Ts>(Context& con, km::list<Ts...>)
-            { (Ts::enter_state(con), ...); }(con, back::get_parents<states, parent::id, Dest::id>());
+            [this]<typename... Ts>(Context& c, km::list<Ts...>)
+            { (Ts::enter_state(c), ...); }(con, back::get_parents<states, parent::id, Dest::id>());
         }
         return true;
     }
@@ -583,16 +583,16 @@ struct unrolled_sm
         if constexpr (Trans::is_internal())
         {
             trans.exec(con);
-            result = dispatch_result::internal;
+            result = dispatch_result::interior;
             return true;
         }
         current_state = Dest::id;
         result        = dispatch_result::normal;  // this seems wrong.. because we can always take the initial transition??c
 
         if constexpr (Trans::to_history())
-            [this]<size_t... Is>(Context & con, Trans t, state_id dest_id, Source source, Dest dest, std::integer_sequence<size_t, Is...>)
+            [this]<size_t... Is>(Context & c, Trans t, state_id id, Source s, Dest, std::integer_sequence<size_t, Is...>)
             {
-                return ((dest_id == (Dest::id + Is) && handle_transition(con, t, source, get_state<Dest::id + Is>())) || ...);
+                return ((id == (Dest::id + Is) && handle_transition(c, t, s, get_state<Dest::id + Is>())) || ...);
             }
         (con, trans, current_state = history[Dest::history], source, dest, std::make_index_sequence<Dest::size + 1>{});
         else if constexpr (Traits::exit_count > 0 || Traits::enter_count > 0 || Traits::history_count > 0)
@@ -606,33 +606,31 @@ struct unrolled_sm
     template <typename EventId, typename... States>
     inline dispatch_result dispatch(Context& con, EventId, kvasir::mpl::list<States...>)
     {
-        dispatch_result ret = no_consume;
+        dispatch_result ret = dispatch_result::no_consume;
         namespace km        = kvasir::mpl;
         const auto s        = current_state;
-        bool       val      = ((s == States::id &&
-                     [this]<typename Source, typename... Ts>(Context& con, dispatch_result& result, Source state, km::list<Ts...>) {
-                         return ((Ts::eval(con) && execute_transition(con, result, get_state<Ts::dest>{}, Ts{}, state)) || ...);
-                     }(con, ret, States{},
-                       back::grab_event_transitions_sorted<states, back::get_event_id<sm, std::decay_t<EventId>>::value, States::id>{})) ||
-                    ...);
+        ((s == States::id && [this]<typename Source, typename... Ts>(Context& c, dispatch_result& r, Source state, km::list<Ts...>)
+          { return ((Ts::eval(c) && execute_transition(c, r, get_state<Ts::dest>{}, Ts{}, state)) || ...); }(
+              con, ret, States{},
+              back::grab_event_transitions_sorted<states, back::get_event_id<sm, std::decay_t<EventId>>::value, States::id>{})) ||
+         ...);
         return ret;
     }
 
     template <typename... States>
-    inline dispatch_result dispatch(Context& con, event_id id, kvasir::mpl::list<States...>)
+    inline dispatch_result dispatch(Context& con, event_id ev_id, kvasir::mpl::list<States...>)
     {
-        dispatch_result ret = no_consume;
+        dispatch_result ret = dispatch_result::no_consume;
         namespace km        = kvasir::mpl;
         const auto s        = current_state;
-        bool       val =
-            ((s == States::id &&
-              [this]<typename Source, typename... Ts>(Context& con, event_id id, dispatch_result& result, Source state, km::list<Ts...>)
-              {
-                  return (((Ts::event == id || Ts::event == back::any_event_id) && Ts::eval(con) &&
-                           execute_transition(con, result, get_state<Ts::dest>{}, Ts{}, state)) ||
-                          ...);
-              }(con, id, ret, States{}, back::grab_transitions_sorted<states, States::id>{})) ||
-             ...);
+        ((s == States::id &&
+          [this]<typename Source, typename... Ts>(Context& c, event_id id, dispatch_result& r, Source state, km::list<Ts...>)
+          {
+              return (((Ts::event == id || Ts::event == back::any_event_id) && Ts::eval(c) &&
+                       execute_transition(c, r, get_state<Ts::dest>{}, Ts{}, state)) ||
+                      ...);
+          }(con, ev_id, ret, States{}, back::grab_transitions_sorted<states, States::id>{})) ||
+         ...);
         return ret;
     }
 
@@ -640,10 +638,11 @@ struct unrolled_sm
     inline bool execute_initial_or_completion(Context& con, dispatch_result& ret,
                                               back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>) noexcept
     {
-        using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
+        // TODO(pacm): check if source is needed
+        // using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
         using enum hsm::back::state_flags;
         using enum hsm::back::transition_flags;
-        ret = no_consume;
+        ret = dispatch_result::no_consume;
         if constexpr (static_cast<bool>(Flags & has_initial_transition) || static_cast<bool>(Flags & has_default_transition))
         {
             return (((Ts::is_initial() || Ts::is_completion()) && Ts::eval(con) &&
@@ -657,10 +656,11 @@ struct unrolled_sm
     inline bool execute_completion(Context& con, dispatch_result& ret,
                                    back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>) noexcept
     {
-        using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
+        // TODO(pacm): check if source is needed
+        // using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
         using enum hsm::back::state_flags;
         using enum hsm::back::transition_flags;
-        ret = no_consume;
+        ret = dispatch_result::no_consume;
         if constexpr (static_cast<bool>(Flags & has_default_transition))
         {
             return ((Ts::is_completion() && Ts::eval(con) && execute_transition(con, ret, get_state<Ts::dest>{}, Ts{}, get_state<0>{})) ||
@@ -672,18 +672,17 @@ struct unrolled_sm
     bool process_event(event_id ev, Context& con)
     {
         auto result = dispatch(con, ev, states{});
-        if (result == no_consume) return false;
-        if (result == internal) return true;
+        if (result == dispatch_result::no_consume) return false;
+        if (result == dispatch_result::interior) return true;
         do {
-            if (result == normal)
-                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((c == Ts::id && (execute_initial_or_completion(con, result, Ts{}))) || ...);
+            if (result == dispatch_result::normal)
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>) {
+                    auto find_state = ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
                 }(con, result, current_state, states{});
-            else if (result == to_final)
-                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((c == Ts::id && (execute_completion(con, result, Ts{}))) || ...);
-                }(con, result, current_state, states{});
-        } while (result != no_consume);
+            else if (result == dispatch_result::to_final)
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
+                { auto find_state = ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
+        } while (result != dispatch_result::no_consume);
         return true;
     }
 
@@ -692,42 +691,40 @@ struct unrolled_sm
     process_event(EventId&& ev, Context& con)
     {
         auto result = dispatch(con, ev, states{});
-        if (result == no_consume) return false;
-        if (result == internal) return true;
+        if (result == dispatch_result::no_consume) return false;
+        if (result == dispatch_result::interior) return true;
         do {
-            if (result == normal)
-                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((c == Ts::id && (execute_initial_or_completion(con, result, Ts{}))) || ...);
+            if (result == dispatch_result::normal)
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>) {
+                    auto find_state = ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
                 }(con, result, current_state, states{});
-            else if (result == to_final)
-                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((c == Ts::id && (execute_completion(con, result, Ts{}))) || ...);
-                }(con, result, current_state, states{});
-        } while (result != no_consume);
+            else if (result == dispatch_result::to_final)
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
+                { auto find_state = ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
+        } while (result != dispatch_result::no_consume);
         return true;
     }
 
     inline void start(Context& con) noexcept
     {
         namespace km     = kvasir::mpl;
-        using root_state = get_state<0>;
-        if constexpr (Traits::enter_count > 0 && static_cast<uint8_t>(root_state::flags & hsm::back::state_flags::has_entry) != 0)
+        using root_st = get_state<0>;
+        if constexpr (Traits::enter_count > 0 && static_cast<uint8_t>(root_st::flags & hsm::back::state_flags::has_entry) != 0)
         {
-            typename root_state::entry{}(con);
+            typename root_st::entry{}(con);
         }
 
-        dispatch_result result = no_consume;
+        dispatch_result result = dispatch_result::no_consume;
         this->template execute_initial_or_completion(con, result, root_state{});
         do {
-            if (result == normal)
-                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((c == Ts::id && (execute_initial_or_completion(con, result, Ts{}))) || ...);
+            if (result == dispatch_result::normal)
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>) {
+                    auto find_state = ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
                 }(con, result, current_state, states{});
-            else if (result == to_final)
-                [this]<typename... Ts>(Context& con, dispatch_result& result, state_id c, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((c == Ts::id && (execute_completion(con, result, Ts{}))) || ...);
-                }(con, result, current_state, states{});
-        } while (result != no_consume);
+            else if (result == dispatch_result::to_final)
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
+                { auto find_state = ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
+        } while (result != dispatch_result::no_consume);
     }
 
     inline constexpr state_id current_state_id() const noexcept { return current_state; }
@@ -765,13 +762,12 @@ inline constexpr auto create_unrolled_sm(Ts&&...) noexcept
 
     using state_id_type   = get_id_type<sm_stats::count>;
     using event_id_type   = get_id_type<sm_stats::event_count>;
-    using history         = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
+    using history_t         = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
     using entry_c         = typename tiny_tuple::value_type<back::entry_count, typename sm_res::type>::type::value;
     using exit_c          = typename tiny_tuple::value_type<back::exit_count, typename sm_res::type>::type::value;
-    using history_id_type = get_id_type<history::size()>;
-    using traits = back::u_sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, history::size(), history_id_type,
+    using history_id_type = get_id_type<history_t::size()>;
+    using traits = back::u_sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, history_t::size(), history_id_type,
                                      entry_c::value, exit_c::value>;
-    return unrolled_sm<final_sm, Context, traits>(back::get_history<state_id_type>(history{}));
+    return unrolled_sm<final_sm, Context, traits>(back::get_history<state_id_type>(history_t{}));
 }
 }  // namespace hsm
-#endif

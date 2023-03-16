@@ -8,8 +8,8 @@ int  main()
     struct EmptyContext
     {
     };
-    auto debug_stuff = [](EmptyContext&) { std::cout << "Stay in CCC \n"; };
-    auto go_to_bbb   = [](EmptyContext&) { std::cout << "go to bbb\n"; };
+    auto         debug_stuff = [](EmptyContext&) { std::cout << "Stay in CCC \n"; };
+    auto         go_to_bbb   = [](EmptyContext&) { std::cout << "go to bbb\n"; };
     auto         foo         = create_state_machine<EmptyContext>(  //
         "jump_to_b"_ev,                             //
         "stay_in_ccc"_ev,

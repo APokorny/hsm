@@ -4,8 +4,8 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_HSM_HPP_INCLUDED
-#define HSM_HSM_HPP_INCLUDED
+#pragma once
+
 #include <array>
 #include <vector>
 #include <functional>
@@ -231,8 +231,8 @@ struct state_machine
     }
 
     template <typename EventId>
-    requires requires { back::get_event_id<Hsm, std::decay_t<EventId>>::value; }
-    bool process_event(EventId&&, Context& con)
+        requires requires { back::get_event_id<Hsm, std::decay_t<EventId>>::value; } bool
+    process_event(EventId&&, Context& con)
     {
         return process_event(back::get_event_id<Hsm, std::decay_t<EventId>>::value, con);
     }
@@ -271,7 +271,7 @@ constexpr auto create_state_machine(Ts&&...)
     using action_id_type    = get_id_type<sm_res::action_count>;
     using condition_id_type = get_id_type<sm_res::condition_count>;
     using event_id_type     = get_id_type<sm_stats::event_count>;
-    using history_table           = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
+    using history_table     = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
     using history_id_type   = get_id_type<history_table::size()>;
     using tt_entry          = detail::tt_entry<event_id_type, state_id_type, condition_id_type, action_id_type>;
     using traits            = back::sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, sm_res::action_count,
@@ -297,5 +297,3 @@ auto process_event(SM& sm, E const& e)
 }
 
 }  // namespace hsm
-
-#endif
