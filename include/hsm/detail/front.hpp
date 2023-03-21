@@ -4,8 +4,7 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_DETAIL_FRONT_HPP_INCLUDED
-#define HSM_DETAIL_FRONT_HPP_INCLUDED
+#pragma once
 
 #include <utility>
 #include "hsm/hsm_fwd.hpp"
@@ -41,5 +40,3 @@ struct is_final_state<final_state<D>> : kvasir::mpl::bool_<true>
 };
 }  // namespace detail
 }  // namespace hsm
-
-#endif

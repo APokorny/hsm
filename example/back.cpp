@@ -19,7 +19,8 @@ int main()
         auto a1   = [](Empty&) {};
         auto a2   = [](Empty&) {};
         auto expr = "a"_state("e"_ev / a1 = "b"_state, "b"_state("e"_ev / a2 = "a"_state));
-        static_assert(std::is_same<hsm::back::extract_actions<decltype(expr)>, km::list<std::decay_t<decltype(a1)>, std::decay_t<decltype(a2)>>>::value,
+        static_assert(std::is_same<hsm::back::extract_actions<decltype(expr)>,
+                                   km::list<std::decay_t<decltype(a1)>, std::decay_t<decltype(a2)>>>::value,
                       "action list does not match list<a1, a2>");
     }
     {

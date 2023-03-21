@@ -4,8 +4,8 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_DETAIL_FLAG_HPP_INCLUDED
-#define HSM_DETAIL_FLAG_HPP_INCLUDED
+#pragma once
+
 #include <type_traits>
 #include <kvasir/mpl/types/int.hpp>
 
@@ -119,5 +119,3 @@ constexpr std::enable_if_t<enable_bitmask_ops<E>::value, bool> is_set(E v, E f)
 
 }  // namespace back
 }  // namespace hsm
-
-#endif

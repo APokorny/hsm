@@ -4,8 +4,8 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_DETAIL_BACK_HPP_INCLUDED
-#define HSM_DETAIL_BACK_HPP_INCLUDED
+#pragma once
+
 #include <hsm/hsm_fwd.hpp>
 #include <kvasir/mpl/algorithm/stable_sort.hpp>
 #include <kvasir/mpl/algorithm/find_if.hpp>
@@ -86,13 +86,13 @@ struct get_state_impl<C, hsm::final_state<T>>
 struct is_action
 {
     template <typename T>
-    using f = kvasir::mpl::bool_<!std::is_same_v<T,no_action>>;
+    using f = kvasir::mpl::bool_<!std::is_same_v<T, no_action>>;
 };
 
 struct is_condition
 {
     template <typename T>
-    using f = kvasir::mpl::bool_<!std::is_same_v<T,no_cond>>;
+    using f = kvasir::mpl::bool_<!std::is_same_v<T, no_cond>>;
 };
 
 struct function_type
@@ -241,9 +241,6 @@ struct flatten_transition_conditions<hsm::transition<TT, S, E, C, A, D>>
     using type = kvasir::mpl::list<C>;
 };
 
-
 }  // namespace detail
 }  // namespace back
 }  // namespace hsm
-
-#endif

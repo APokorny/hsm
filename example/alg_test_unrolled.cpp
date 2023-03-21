@@ -16,11 +16,11 @@ struct f
 constexpr auto sm_with_multiple_transitions()
 {
     return hsm::create_unrolled_sm<f>(  //
-        "e1"_ev,                          //
-        "a"_state,                        //
-        "b"_state,                        //
-        "e1"_ev = "a"_state,              //
-        "e1"_ev = "b"_state               //
+        "e1"_ev,                        //
+        "a"_state,                      //
+        "b"_state,                      //
+        "e1"_ev = "a"_state,            //
+        "e1"_ev = "b"_state             //
     );
 }
 
@@ -36,16 +36,16 @@ TEST_CASE("Pick first matching transition", "[algorithm][transition_search]")
 constexpr auto sm_with_any()
 {
     return hsm::create_unrolled_sm<f>(  //
-        "e1"_ev, "e2"_ev, "e3"_ev,        //
-        "a"_state,                        //
-        "b"_state,                        //
-        "e1"_ev  = "a"_state,             //
-        hsm::any = "b"_state              //
+        "e1"_ev, "e2"_ev, "e3"_ev,      //
+        "a"_state,                      //
+        "b"_state,                      //
+        "e1"_ev  = "a"_state,           //
+        hsm::any = "b"_state            //
     );
 }
 constexpr auto sm_with_any_internal()
 {
-    return hsm::create_unrolled_sm<f>(      //
+    return hsm::create_unrolled_sm<f>(        //
         "e1"_ev, "e2"_ev, "e3"_ev,            //
         hsm::initial = "a"_state,             //
         "a"_state(hsm::any = hsm::internal),  //
@@ -86,8 +86,8 @@ TEST_CASE("Handle Any event at internal transition", "[algorithm][any][internal]
 constexpr auto sm_enter_exit()
 {
     return hsm::create_unrolled_sm<f>(  //
-        "e1"_ev,                          //
-        hsm::initial = "a"_state,         //
+        "e1"_ev,                        //
+        hsm::initial = "a"_state,       //
         "a"_state(
             hsm::enter = [](f& self) { self.data = 1; }, hsm::exit = [](f& self) { self.data = 3; },
             "e1"_ev = "b"_state  //
@@ -116,9 +116,9 @@ TEST_CASE("Execute Exit Actions ", "[algorithm][struct][exit]")
 constexpr auto sm_with_shallow_history()
 {
     return hsm::create_unrolled_sm<f>(  //
-        "e1"_ev,                          //
-        hsm::initial = "a"_state,         //
-        "a"_state(                        //
+        "e1"_ev,                        //
+        hsm::initial = "a"_state,       //
+        "a"_state(                      //
             hsm::initial = hsm::history,
             hsm::history = "no_history"_state,  //
             "to_remember"_state,                //
@@ -143,44 +143,40 @@ TEST_CASE("Shallow History restore on initial", "[algorithm][history][shallow re
     auto sm = sm_with_shallow_history();
     sm.start(c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("no_history"_state));
-    sm.process_event("ev"_ev, c); // go to remember
+    sm.process_event("ev"_ev, c);  // go to remember
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("b"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
-
 }
-
 
 constexpr auto sm_with_shallow_history_of()
 {
     return hsm::create_unrolled_sm<f>(  //
-        "e1"_ev,                          //
-        hsm::initial = "a"_state,         //
-        "a"_state(                        //
+        "e1"_ev,                        //
+        hsm::initial = "a"_state,       //
+        "a"_state(                      //
             hsm::initial = hsm::history,
             hsm::history = "no_history"_state,  //
             "to_remember"_state,                //
             "no_history"_state("ev"_ev = "to_remember"_state),
-            "e1"_ev = "b"_state         //
-            ),                          //
+            "e1"_ev = "b"_state                     //
+            ),                                      //
         "b"_state("e1"_ev = history_of("a"_state))  //
     );
 }
-
 
 TEST_CASE("Shallow History restore on history_of", "[algorithm][history][shallow restore 2]")
 {
     f    c;
     auto sm = sm_with_shallow_history_of();
-    sm.start(c);// go to no history 
+    sm.start(c);  // go to no history
     REQUIRE(sm.current_state_id() == sm.get_state_id("no_history"_state));
-    sm.process_event("ev"_ev, c); // go to remember
+    sm.process_event("ev"_ev, c);  // go to remember
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("b"_state));
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
 }
-

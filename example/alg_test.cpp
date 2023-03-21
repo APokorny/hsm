@@ -179,4 +179,3 @@ TEST_CASE("Shallow History restore on history_of", "[algorithm][history][shallow
     sm.process_event("e1"_ev, c);
     REQUIRE(sm.current_state_id() == sm.get_state_id("to_remember"_state));
 }
-

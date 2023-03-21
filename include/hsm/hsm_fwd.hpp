@@ -4,8 +4,7 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_HSM_FWD_HPP_INCLUDED
-#define HSM_HSM_FWD_HPP_INCLUDED
+#pragma once
 
 #include "hsm/config.hpp"
 #include "hsm/detail/flag.hpp"
@@ -90,5 +89,3 @@ struct enable_bitmask_ops<state_flags> : kvasir::mpl::bool_<true>
 
 }  // namespace back
 }  // namespace hsm
-
-#endif

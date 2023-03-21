@@ -37,15 +37,15 @@ int main()
     struct empty
     {
     };
-    auto always_false = [](empty&e)->bool{return false;};
+    auto always_false = [](empty& e) -> bool { return false; };
     using namespace hsm;
-    auto  a = hsm::create_unrolled_sm<empty>(                                  //
-        "aussen"_state(                                                       //
-            "innen"_state("ev1"_ev = root),                                   //
+    auto  a = hsm::create_unrolled_sm<empty>(         //
+        "aussen"_state(                              //
+            "innen"_state("ev1"_ev = root),          //
             "ev1"_ev[always_false] = "innen"_state,  //
-            any                                             = root            //
-            ),                                                                //
-        "ev1"_ev   = "aussen"_state,                                          //
+            any                    = root            //
+            ),                                       //
+        "ev1"_ev   = "aussen"_state,                 //
         hsm::enter = [](empty& e) {});
     empty context;
     a.start(context);

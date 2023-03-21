@@ -4,8 +4,8 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-#ifndef HSM_BACK_HPP_INCLUDED
-#define HSM_BACK_HPP_INCLUDED
+#pragma once
+
 #include <hsm/hsm_fwd.hpp>
 #include <hsm/front.hpp>
 #include <hsm/detail/hsm.hpp>
@@ -19,6 +19,7 @@
 #include <kvasir/mpl/sequence/take.hpp>
 #include <kvasir/mpl/sequence/push_back.hpp>
 #include <kvasir/mpl/sequence/size.hpp>
+
 namespace hsm
 {
 namespace back
@@ -99,7 +100,7 @@ struct condition_flag<no_cond> : kvasir::mpl::uint_<0>
 };
 
 template <typename T>
-struct action_flag: kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
+struct action_flag : kvasir::mpl::uint_<static_cast<uint8_t>(transition_flags::has_action)>
 {
 };
 template <>
@@ -141,8 +142,11 @@ struct assembly_status
     static constexpr size_t enter_count      = EnterCount;
     static constexpr size_t exit_count       = ExitCount;
 };
-template<typename W>
-struct wrap { using type = W;};
+template <typename W>
+struct wrap
+{
+    using type = W;
+};
 template <bool b>
 struct if_
 {
@@ -221,8 +225,8 @@ struct assemble_state_machine
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<std::is_same_v<no_event, E> || tiny_tuple::has_key<unpack<E>, sm>::value>::template f<
             wrap<assembly_status<sm, P, SC, EC, TC + 1, EnterC, ExitC>>,
-            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1, EnterC,
-                            ExitC>>>;
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<E>, km::uint_<EC>>>, P, SC, EC + 1, TC + 1,
+                                 EnterC, ExitC>>>;
     };
 
     template <typename SM, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename A>
@@ -243,8 +247,8 @@ struct assemble_state_machine
         using sm   = tiny_tuple::map<Items...>;
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
             wrap<assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>>,
-            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P, SC + 1,
-                            EC, TC, EnterC, ExitC>>>;
+            wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, back::state<0, SC, 0, P, 0, 0, 0>>>, P,
+                                 SC + 1, EC, TC, EnterC, ExitC>>>;
     };
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K>
     struct f_impl<assembly_status<tiny_tuple::map<Items...>, P, SC, EC, TC, EnterC, ExitC>, hsm::event<K>>
@@ -253,7 +257,7 @@ struct assemble_state_machine
         using type = typename if_<tiny_tuple::has_key<K, sm>::value>::template f<
             wrap<assembly_status<sm, P, SC, EC, TC, EnterC, ExitC>>,
             wrap<assembly_status<tiny_tuple::map<Items..., tiny_tuple::detail::item<unpack<K>, km::uint_<EC>>>, P, SC, EC + 1, TC, EnterC,
-                            ExitC>>>;
+                                 ExitC>>>;
     };
 
     template <typename... Items, size_t P, size_t SC, size_t EC, size_t TC, size_t EnterC, size_t ExitC, typename K, typename... Elements>
@@ -651,11 +655,11 @@ auto get_actions(kvasir::mpl::list<As...>) noexcept
     static C table[sizeof...(As)] = {detail::empty_object<As>::get()...};
     return table;
 }
-template<typename StateIdType, typename T, T ...Is>
+template <typename StateIdType, typename T, T... Is>
 constexpr auto get_history(std::integer_sequence<T, Is...>) -> std::array<StateIdType, sizeof...(Is)>
 {
     return {static_cast<StateIdType>(Is)...};
 }
+
 }  // namespace back
 }  // namespace hsm
-#endif

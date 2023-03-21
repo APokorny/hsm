@@ -4,9 +4,7 @@
  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ========================================================================== */
 
-
-#ifndef HSM_FRONT_HPP_INCLUDED
-#define HSM_FRONT_HPP_INCLUDED
+#pragma once
 
 #include <memory>
 #include "tiny_tuple/tuple.h"
@@ -350,5 +348,3 @@ constexpr auto final_of(state_ref<K> const&) noexcept { return final_state<state
 constexpr state_ref<root_state> root;
 
 }  // namespace hsm
-
-#endif

@@ -18,5 +18,5 @@ struct str_lit
     char           data[N + 1];
 };
 template <std::size_t N>
-str_lit(char const (&str)[N])->str_lit<N - 1>;
+str_lit(char const (&str)[N]) -> str_lit<N - 1>;
 }  // namespace hsm
