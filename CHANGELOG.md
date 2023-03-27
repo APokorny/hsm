@@ -1,12 +1,15 @@
 
 # Changelog
 
-## Version 0.3.4
+## Version 0.3.5
 Bugfix release that fixes two issues in unrolled statemachine
 
 **Bugfix**: FTBFS - not passing root state in start function
 
 **Bugfix**: not passing source state into algorithm
+
+## Version 0.3.4
+Warnings fixed in unrolled sm
 
 ## Version 0.3.3
 Bugfix release for hsm::any transitions in unrolled state machine
