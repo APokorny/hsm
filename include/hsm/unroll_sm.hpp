@@ -638,15 +638,14 @@ struct unrolled_sm
     inline bool execute_initial_or_completion(Context& con, dispatch_result& ret,
                                               back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>) noexcept
     {
-        // TODO(pacm): check if source is needed
-        // using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
+        using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
         using enum hsm::back::state_flags;
         using enum hsm::back::transition_flags;
         ret = dispatch_result::no_consume;
         if constexpr (static_cast<bool>(Flags & has_initial_transition) || static_cast<bool>(Flags & has_default_transition))
         {
             return (((Ts::is_initial() || Ts::is_completion()) && Ts::eval(con) &&
-                     execute_transition(con, ret, get_state<Ts::dest>{}, Ts{}, get_state<0>{})) ||
+                     execute_transition(con, ret, get_state<Ts::dest>{}, Ts{}, source{})) ||
                     ...);
         }
         return true;
@@ -656,14 +655,13 @@ struct unrolled_sm
     inline bool execute_completion(Context& con, dispatch_result& ret,
                                    back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>) noexcept
     {
-        // TODO(pacm): check if source is needed
-        // using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
+        using source = back::u_state<Flags, Id, S, ParentId, Entry, Exit, H, Ts...>;
         using enum hsm::back::state_flags;
         using enum hsm::back::transition_flags;
         ret = dispatch_result::no_consume;
         if constexpr (static_cast<bool>(Flags & has_default_transition))
         {
-            return ((Ts::is_completion() && Ts::eval(con) && execute_transition(con, ret, get_state<Ts::dest>{}, Ts{}, get_state<0>{})) ||
+            return ((Ts::is_completion() && Ts::eval(con) && execute_transition(con, ret, get_state<Ts::dest>{}, Ts{}, source{})) ||
                     ...);
         }
         return true;
@@ -676,12 +674,11 @@ struct unrolled_sm
         if (result == dispatch_result::interior) return true;
         do {
             if (result == dispatch_result::normal)
-                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
-                }(con, result, current_state, states{});
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
+                { ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
             else if (result == dispatch_result::to_final)
                 [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
-                { auto find_state = ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
+                { ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
         } while (result != dispatch_result::no_consume);
         return true;
     }
@@ -696,18 +693,18 @@ struct unrolled_sm
         do {
             if (result == dispatch_result::normal)
                 [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
+                    ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
                 }(con, result, current_state, states{});
             else if (result == dispatch_result::to_final)
                 [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
-                { auto find_state = ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
+                { ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
         } while (result != dispatch_result::no_consume);
         return true;
     }
 
     inline void start(Context& con) noexcept
     {
-        namespace km     = kvasir::mpl;
+        namespace km  = kvasir::mpl;
         using root_st = get_state<0>;
         if constexpr (Traits::enter_count > 0 && static_cast<uint8_t>(root_st::flags & hsm::back::state_flags::has_entry) != 0)
         {
@@ -715,15 +712,14 @@ struct unrolled_sm
         }
 
         dispatch_result result = dispatch_result::no_consume;
-        this->template execute_initial_or_completion(con, result, root_state{});
+        this->template execute_initial_or_completion(con, result, root_st{});
         do {
             if (result == dispatch_result::normal)
-                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>) {
-                    auto find_state = ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...);
-                }(con, result, current_state, states{});
+                [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
+                { ((id == Ts::id && (execute_initial_or_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
             else if (result == dispatch_result::to_final)
                 [this]<typename... Ts>(Context& c, dispatch_result& r, state_id id, kvasir::mpl::list<Ts...>)
-                { auto find_state = ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
+                { ((id == Ts::id && (execute_completion(c, r, Ts{}))) || ...); }(con, result, current_state, states{});
         } while (result != dispatch_result::no_consume);
     }
 
@@ -762,12 +758,12 @@ inline constexpr auto create_unrolled_sm(Ts&&...) noexcept
 
     using state_id_type   = get_id_type<sm_stats::count>;
     using event_id_type   = get_id_type<sm_stats::event_count>;
-    using history_t         = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
+    using history_t       = typename tiny_tuple::value_type<back::history_table, typename sm_res::type>::type::value;
     using entry_c         = typename tiny_tuple::value_type<back::entry_count, typename sm_res::type>::type::value;
     using exit_c          = typename tiny_tuple::value_type<back::exit_count, typename sm_res::type>::type::value;
     using history_id_type = get_id_type<history_t::size()>;
-    using traits = back::u_sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, history_t::size(), history_id_type,
-                                     entry_c::value, exit_c::value>;
+    using traits          = back::u_sm_traits<sm_stats::count, state_id_type, sm_stats::event_count, event_id_type, history_t::size(),
+                                     history_id_type, entry_c::value, exit_c::value>;
     return unrolled_sm<final_sm, Context, traits>(back::get_history<state_id_type>(history_t{}));
 }
 }  // namespace hsm
