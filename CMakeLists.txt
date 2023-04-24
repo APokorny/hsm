@@ -2,7 +2,7 @@ cmake_policy(SET CMP0057 NEW)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0077 NEW)
 cmake_minimum_required(VERSION 3.14)
-project(hsm VERSION 0.2.0 LANGUAGES CXX)
+project(hsm VERSION 0.3.5 LANGUAGES CXX)
 
 include(cmake/get_cpm.cmake)
 cpmaddpackage("gh:APokorny/tiny_tuple#ca6c7d2f6c2c657d921bcfea8577a17e0e7a8e0a")
@@ -38,6 +38,8 @@ packageproject(
 
 if(hsm_BUILD_TESTS)
   cpmaddpackage("gh:catchorg/Catch2@2.13.7")
+  include(CTest)
+  enable_testing()
   add_subdirectory(example)
 endif()
 

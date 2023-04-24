@@ -1,6 +1,9 @@
 
 # Changelog
 
+## Unreleased
+**Feature**: CTest enablement
+
 ## Version 0.3.5
 Bugfix release that fixes two issues in unrolled statemachine
 
