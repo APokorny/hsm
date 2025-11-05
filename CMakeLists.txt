@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.14)
 project(hsm VERSION 0.3.5 LANGUAGES CXX)
 
 include(cmake/get_cpm.cmake)
-cpmaddpackage("gh:APokorny/tiny_tuple#ca6c7d2f6c2c657d921bcfea8577a17e0e7a8e0a")
+cpmaddpackage("gh:APokorny/tiny_tuple#acd854ad58f5beff3950154edcb8ab5973e4ad65")
 cpmaddpackage("gh:TheLartians/PackageProject.cmake@1.9.0")
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(hsm_STANDALONE ON)
