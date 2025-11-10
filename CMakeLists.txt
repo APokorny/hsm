@@ -2,10 +2,10 @@ cmake_policy(SET CMP0057 NEW)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0077 NEW)
 cmake_minimum_required(VERSION 3.14)
-project(hsm VERSION 0.3.5 LANGUAGES CXX)
+project(hsm VERSION 0.3.6 LANGUAGES CXX)
 
 include(cmake/get_cpm.cmake)
-cpmaddpackage("gh:APokorny/tiny_tuple#acd854ad58f5beff3950154edcb8ab5973e4ad65")
+cpmaddpackage("gh:APokorny/tiny_tuple@1.0.0")
 cpmaddpackage("gh:TheLartians/PackageProject.cmake@1.9.0")
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(hsm_STANDALONE ON)
@@ -28,7 +28,7 @@ packageproject(
   BINARY_DIR ${PROJECT_BINARY_DIR}
   INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
   INCLUDE_DESTINATION include/${PROJECT_NAME}-${PROJECT_VERSION}
-  DEPENDENCIES "tiny_tuple 0.1.0"
+  DEPENDENCIES "tiny_tuple 1.0.0"
   VERSION_HEADER "${PROJECT_NAME}/version.h"
   NAMESPACE hsm
   COMPATIBILITY AnyNewerVersion

@@ -1,8 +1,10 @@
 
 # Changelog
 
-## Unreleased
+## Version 0.3.6
 **Feature**: CTest enablement
+
+**Feature**: CMake 4 compatibility with all dependencies donated by Paulo Martinez
 
 ## Version 0.3.5
 Bugfix release that fixes two issues in unrolled statemachine
