@@ -2,7 +2,7 @@ cmake_policy(SET CMP0057 NEW)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0077 NEW)
 cmake_minimum_required(VERSION 3.14)
-project(hsm VERSION 0.3.6 LANGUAGES CXX)
+project(hsm VERSION 0.3.7 LANGUAGES CXX)
 
 include(cmake/get_cpm.cmake)
 cpmaddpackage("gh:APokorny/tiny_tuple@1.0.0")

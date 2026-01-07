@@ -1,6 +1,9 @@
 
 # Changelog
 
+## Version 0.3.7
+**Fix**: GCC 15 compatibility
+
 ## Version 0.3.6
 **Feature**: CTest enablement
 
