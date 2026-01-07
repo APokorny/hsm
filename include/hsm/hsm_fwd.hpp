@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 #include "hsm/config.hpp"
 #include "hsm/detail/flag.hpp"
 #ifdef HSM_USE_PROPER_LITERALS
